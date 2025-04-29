@@ -37,10 +37,14 @@
               'current-month': day.currentMonth,
               'today': isToday(day.date),
               'has-events': hasEvents(day.date),
-              'other-month': !day.currentMonth
+              'other-month': !day.currentMonth,
+              'drag-over': isDraggingOver(day.date)
             }
           ]"
           @click="selectDay(day.date)"
+          @dragover.prevent="onDragOver($event, day.date)"
+          @dragleave.prevent="onDragLeave()"
+          @drop.prevent="onDayDrop($event, day.date)"
         >
           <div class="day-number">{{ day.dayNumber }}</div>
           <div class="events-container">
@@ -49,6 +53,10 @@
                 v-if="idx < 3"
                 class="event"
                 :style="{ backgroundColor: event.color }"
+                draggable="true"
+                @dragstart="onEventDragStart($event, event)"
+                @dragend="onDragEnd()"
+                @click.stop="openEventModal(event)"
               >
                 {{ event.title }}
               </div>
@@ -91,7 +99,10 @@
               v-for="(day, dayIndex) in currentWeekDays"
               :key="dayIndex"
               class="day-column"
-              :class="{ 'today': isToday(day.date) }"
+              :class="{ 'today': isToday(day.date), 'drag-over': isDraggingOver(day.date) }"
+              @dragover.prevent="onDragOver($event, day.date)"
+              @dragleave.prevent="onDragLeave()"
+              @drop.prevent="onWeekDrop($event, day.date)"
             >
               <div
                 v-for="hour in hours"
@@ -108,6 +119,10 @@
                   backgroundColor: event.color,
                   borderLeft: `3px solid ${darkenColor(event.color)}`
                 }"
+                draggable="true"
+                @dragstart="onEventDragStart($event, event)"
+                @dragend="onDragEnd()"
+                @click.stop="openEventModal(event)"
               >
                 {{ event.title }}
                 <div class="event-time">{{ formatEventTime(event) }}</div>
@@ -117,31 +132,36 @@
         </div>
       </div>
     </div>
+
+    <!-- Event Modal -->
+    <EventModal
+      :is-open="eventModal.isOpen"
+      :event="eventModal.event"
+      :is-new="eventModal.isNew"
+      :date="eventModal.date"
+      @close="closeEventModal"
+      @save="saveEvent"
+      @delete="deleteEventHandler"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, inject, provide } from 'vue';
+import { ref, computed, watch, onMounted, inject, provide, reactive } from 'vue';
+import EventModal from './EventModal.vue';
+import {
+  type CalendarEvent,
+  type CalendarDataSource,
+  type CalendarFetchOptions,
+  moveEventToDate,
+  type EventModalData
+} from '../utils/calendarDataProvider';
 
 // Define event type
-interface CalendarEvent {
-  id: string | number;
-  title: string;
-  start: Date;
-  end: Date;
-  color: string;
-}
+// Removed redundant CalendarEvent interface definition
 
 // Data layer interfaces
-interface CalendarFetchOptions {
-  start: Date;
-  end: Date;
-  view: 'month' | 'week';
-}
-
-interface CalendarDataSource {
-  fetchEvents: (options: CalendarFetchOptions) => Promise<CalendarEvent[]>;
-}
+// Removed redundant CalendarFetchOptions and CalendarDataSource interface definitions
 
 interface CalendarCache {
   [key: string]: {
@@ -179,7 +199,7 @@ const props = defineProps({
 });
 
 // Emits
-const emit = defineEmits(['update:events', 'fetch-start', 'fetch-success', 'fetch-error']);
+const emit = defineEmits(['update:events', 'fetch-start', 'fetch-success', 'fetch-error', 'event-updated', 'event-added', 'event-deleted']); // Added event emits
 
 // State
 const view = ref<'month' | 'week'>('month');
@@ -189,6 +209,18 @@ const localEvents = ref<CalendarEvent[]>([...props.events]);
 const isLoading = ref<boolean>(false);
 const error = ref<Error | null>(null);
 const eventsCache = ref<CalendarCache>({});
+
+// Drag and Drop State
+const draggingEvent = ref<CalendarEvent | null>(null);
+const dragOverDate = ref<Date | null>(null);
+
+// Event Modal State
+const eventModal = reactive<EventModalData>({
+  isOpen: false,
+  event: null,
+  isNew: true,
+  date: undefined
+});
 
 // Data source - either injected or from props
 const dataSource = computed(() => {
@@ -374,7 +406,8 @@ const daysInMonth = computed<DayCell[]>(() => {
   }
 
   // Add days from next month to complete the last week
-  const remainingDays = 35 - days.length; // 5 rows * 7 days = 35
+  const gridCellsNeeded = Math.ceil((firstDayWeekday + daysCount) / 7) * 7; // Calculate needed cells
+  const remainingDays = gridCellsNeeded - days.length;
   for (let i = 1; i <= remainingDays; i++) {
     const date = new Date(year, month + 1, i);
     days.push({
@@ -445,8 +478,8 @@ function goToToday(): void {
 
 function selectDay(date: Date): void {
   selectedDate.value = date;
-  // You could trigger a modal or side panel to show events here
-  console.log('Selected date:', date);
+  // Open modal to create a new event for this day
+  openEventModal(null, date);
 }
 
 function isToday(date: Date): boolean {
@@ -502,14 +535,11 @@ function calculateEventHeight(event: CalendarEvent): number {
   const startTime = event.start.getHours() + (event.start.getMinutes() / 60);
   const endTime = event.end.getHours() + (event.end.getMinutes() / 60);
   const duration = endTime - startTime;
-  return duration * hourHeight;
+  return Math.max(duration * hourHeight, 20); // Ensure minimum height
 }
 
 function darkenColor(color: string): string {
-  // Simple function to darken a color by 20%
-  // For more sophisticated color manipulation, consider using a library
   try {
-    // Handle hex colors
     if (color.startsWith('#')) {
       const hex = color.slice(1);
       const r = parseInt(hex.slice(0, 2), 16);
@@ -520,11 +550,134 @@ function darkenColor(color: string): string {
 
       return `#${darken(r).toString(16).padStart(2, '0')}${darken(g).toString(16).padStart(2, '0')}${darken(b).toString(16).padStart(2, '0')}`;
     }
-    // For non-hex colors, just return the original
     return color;
   } catch {
     return color;
   }
+}
+
+// --- Drag and Drop Methods ---
+function onEventDragStart(event: DragEvent, calendarEvent: CalendarEvent) {
+  if (event.dataTransfer) {
+    event.dataTransfer.setData('text/plain', String(calendarEvent.id));
+    event.dataTransfer.effectAllowed = 'move';
+  }
+  draggingEvent.value = calendarEvent;
+}
+
+function onDragOver(event: DragEvent, date: Date) {
+  event.preventDefault(); // Necessary to allow drop
+  dragOverDate.value = date;
+}
+
+function onDragLeave() {
+  dragOverDate.value = null;
+}
+
+function onDragEnd() {
+  draggingEvent.value = null;
+  dragOverDate.value = null;
+}
+
+function isDraggingOver(date: Date): boolean {
+  return !!dragOverDate.value &&
+         dragOverDate.value.toDateString() === date.toDateString();
+}
+
+function onDayDrop(event: DragEvent, date: Date) {
+  event.preventDefault();
+  if (draggingEvent.value) {
+    const movedEvent = moveEventToDate(draggingEvent.value, date);
+    // Open modal to confirm or edit time
+    openEventModal(movedEvent, date, false); // isNew = false since it's a move
+  }
+  onDragEnd(); // Clean up drag state
+}
+
+function onWeekDrop(event: DragEvent, date: Date) {
+  event.preventDefault();
+  if (draggingEvent.value && event.target instanceof HTMLElement) {
+    const dayColumn = event.target.closest('.day-column') as HTMLElement;
+    if (!dayColumn) return;
+
+    const hourHeight = 60; // Must match CSS
+    const rect = dayColumn.getBoundingClientRect();
+    const dropY = event.clientY - rect.top; // Position within the column
+
+    const dropHour = Math.floor(dropY / hourHeight);
+    const dropMinute = Math.floor(((dropY % hourHeight) / hourHeight) * 60 / 15) * 15; // Snap to 15 mins
+
+    const currentEvent = draggingEvent.value;
+    const duration = currentEvent.end.getTime() - currentEvent.start.getTime();
+
+    const newStart = new Date(date);
+    newStart.setHours(dropHour, dropMinute, 0, 0);
+
+    const newEnd = new Date(newStart.getTime() + duration);
+
+    updateLocalEvent(currentEvent.id, { start: newStart, end: newEnd });
+  }
+  onDragEnd(); // Clean up drag state
+}
+
+// --- Event Management Methods ---
+function openEventModal(event: CalendarEvent | null, date?: Date, isNew = true) {
+  eventModal.isOpen = true;
+  eventModal.event = event ? { ...event } : null;
+  eventModal.isNew = !event && isNew; // If no event, it's new (unless coming from day drop)
+  eventModal.date = event ? undefined : date;
+}
+
+function closeEventModal() {
+  eventModal.isOpen = false;
+  eventModal.event = null;
+  eventModal.isNew = true;
+  eventModal.date = undefined;
+}
+
+function updateLocalEvent(id: string | number, updates: Partial<CalendarEvent>) {
+  const index = localEvents.value.findIndex(e => e.id === id);
+  if (index !== -1) {
+    localEvents.value[index] = { ...localEvents.value[index], ...updates };
+    emit('event-updated', localEvents.value[index]);
+    emit('update:events', [...localEvents.value]); // Emit updated array
+    return localEvents.value[index];
+  }
+  return null;
+}
+
+function addLocalEvent(event: CalendarEvent) {
+  localEvents.value.push(event);
+  emit('event-added', event);
+  emit('update:events', [...localEvents.value]);
+  return event;
+}
+
+function deleteLocalEvent(id: string | number) {
+  const index = localEvents.value.findIndex(e => e.id === id);
+  if (index !== -1) {
+    const [removed] = localEvents.value.splice(index, 1);
+    emit('event-deleted', removed);
+    emit('update:events', [...localEvents.value]);
+    return removed;
+  }
+  return null;
+}
+
+// Modal save handler
+function saveEvent(eventToSave: CalendarEvent) {
+  if (eventModal.isNew) {
+    addLocalEvent(eventToSave);
+  } else {
+    updateLocalEvent(eventToSave.id, eventToSave);
+  }
+  closeEventModal();
+}
+
+// Modal delete handler
+function deleteEventHandler(id: string | number) {
+  deleteLocalEvent(id);
+  closeEventModal();
 }
 
 // Expose methods and properties for external usage
@@ -538,7 +691,8 @@ defineExpose({
   isLoading,
   error,
   currentDate,
-  view
+  view,
+  openEventModal // Expose modal opener
 });
 </script>
 
@@ -860,5 +1014,19 @@ button:hover {
   font-size: 10px;
   opacity: 0.85;
   margin-top: 3px;
+}
+
+.day-cell.drag-over {
+  background-color: #e8f0fe !important; /* Use important to override other background colors */
+  box-shadow: inset 0 0 0 2px #1a73e8;
+}
+
+.day-column.drag-over {
+  background-color: #f1f8ff !important;
+}
+
+.event.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
 }
 </style>

@@ -24,6 +24,14 @@ export interface CalendarDataSource {
   fetchEvents: (options: CalendarFetchOptions) => Promise<CalendarEvent[]>;
 }
 
+// Event modal data interface
+export interface EventModalData {
+  isOpen: boolean;
+  event: CalendarEvent | null;
+  isNew: boolean;
+  date?: Date;
+}
+
 // Create a data source from a static array of events
 export function createStaticDataSource(events: CalendarEvent[]): CalendarDataSource {
   return {
@@ -198,4 +206,32 @@ export function createEvent(options: {
     end,
     color: options.color || generateEventColor(typeof id === 'string' ? id : String(id))
   };
+}
+
+// Helper to move an event to a new date
+export function moveEventToDate(event: CalendarEvent, newDate: Date): CalendarEvent {
+  const startTime = event.start.getTime();
+  const endTime = event.end.getTime();
+  const duration = endTime - startTime;
+
+  const newStart = new Date(newDate);
+  // Keep original time
+  newStart.setHours(
+    event.start.getHours(),
+    event.start.getMinutes(),
+    event.start.getSeconds()
+  );
+
+  const newEnd = new Date(newStart.getTime() + duration);
+
+  return {
+    ...event,
+    start: newStart,
+    end: newEnd
+  };
+}
+
+// Helper to get time difference in milliseconds between two events
+export function getTimeDifference(fromEvent: CalendarEvent, toEvent: CalendarEvent): number {
+  return toEvent.start.getTime() - fromEvent.start.getTime();
 }
