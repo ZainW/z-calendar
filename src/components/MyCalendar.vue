@@ -121,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineProps } from 'vue';
+import { ref, computed, watch, onMounted, inject, provide } from 'vue';
 
 // Define event type
 interface CalendarEvent {
@@ -132,19 +132,68 @@ interface CalendarEvent {
   color: string;
 }
 
+// Data layer interfaces
+interface CalendarFetchOptions {
+  start: Date;
+  end: Date;
+  view: 'month' | 'week';
+}
+
+interface CalendarDataSource {
+  fetchEvents: (options: CalendarFetchOptions) => Promise<CalendarEvent[]>;
+}
+
+interface CalendarCache {
+  [key: string]: {
+    events: CalendarEvent[];
+    timestamp: number;
+    expiry: number;
+  };
+}
+
+// Provide symbols
+const CALENDAR_DATA_SOURCE = Symbol('calendarDataSource');
+
 // Props
 const props = defineProps({
   events: {
     type: Array as () => CalendarEvent[],
-    required: true,
+    required: false,
     default: () => []
+  },
+  dataSource: {
+    type: Object as () => CalendarDataSource | null,
+    required: false,
+    default: null
+  },
+  cacheExpiry: {
+    type: Number,
+    required: false,
+    default: 5 * 60 * 1000 // 5 minutes in milliseconds
+  },
+  autoFetch: {
+    type: Boolean,
+    required: false,
+    default: true
   }
 });
+
+// Emits
+const emit = defineEmits(['update:events', 'fetch-start', 'fetch-success', 'fetch-error']);
 
 // State
 const view = ref<'month' | 'week'>('month');
 const currentDate = ref(new Date());
 const selectedDate = ref<Date | null>(null);
+const localEvents = ref<CalendarEvent[]>([...props.events]);
+const isLoading = ref<boolean>(false);
+const error = ref<Error | null>(null);
+const eventsCache = ref<CalendarCache>({});
+
+// Data source - either injected or from props
+const dataSource = computed(() => {
+  return props.dataSource || inject(CALENDAR_DATA_SOURCE, null);
+});
 
 // Constants
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -160,6 +209,130 @@ const hours = Array.from({ length: 24 }, (_, i) => i);
 const currentYear = computed(() => currentDate.value.getFullYear());
 const currentMonthIndex = computed(() => currentDate.value.getMonth());
 const currentMonthName = computed(() => months[currentMonthIndex.value]);
+
+// Calculate fetch range based on view
+const fetchRange = computed(() => {
+  const start = new Date(currentDate.value);
+  const end = new Date(currentDate.value);
+
+  if (view.value === 'month') {
+    // Start from the first day of the month
+    start.setDate(1);
+    // Get the last day of the displayed month
+    end.setMonth(end.getMonth() + 1, 0);
+
+    // Add buffer for days from prev/next month
+    const firstDay = new Date(start);
+    const prevMonthDays = firstDay.getDay();
+    start.setDate(start.getDate() - prevMonthDays);
+
+    const lastDay = new Date(end);
+    const nextMonthDays = 6 - lastDay.getDay();
+    end.setDate(end.getDate() + nextMonthDays);
+  } else {
+    // Week view
+    const day = start.getDay();
+    start.setDate(start.getDate() - day); // First day of week
+    end.setDate(end.getDate() + (6 - day)); // Last day of week
+  }
+
+  return { start, end };
+});
+
+// Generate cache key from date range
+function getCacheKey(start: Date, end: Date, view: string): string {
+  return `${view}_${start.toISOString()}_${end.toISOString()}`;
+}
+
+// Check if we have valid cached data
+function hasValidCache(key: string): boolean {
+  if (!eventsCache.value[key]) return false;
+
+  const cacheEntry = eventsCache.value[key];
+  const now = Date.now();
+  return now - cacheEntry.timestamp < cacheEntry.expiry;
+}
+
+// Fetch events from data source
+async function fetchEvents(): Promise<void> {
+  if (!dataSource.value) {
+    return;
+  }
+
+  const { start, end } = fetchRange.value;
+  const cacheKey = getCacheKey(start, end, view.value);
+
+  // Check cache first
+  if (hasValidCache(cacheKey)) {
+    localEvents.value = eventsCache.value[cacheKey].events;
+    return;
+  }
+
+  try {
+    isLoading.value = true;
+    emit('fetch-start', { start, end, view: view.value });
+
+    const fetchOptions: CalendarFetchOptions = {
+      start,
+      end,
+      view: view.value
+    };
+
+    const events = await dataSource.value.fetchEvents(fetchOptions);
+
+    // Update cache
+    eventsCache.value[cacheKey] = {
+      events,
+      timestamp: Date.now(),
+      expiry: props.cacheExpiry
+    };
+
+    localEvents.value = events;
+    emit('update:events', events);
+    emit('fetch-success', events);
+    error.value = null;
+  } catch (err) {
+    error.value = err instanceof Error ? err : new Error(String(err));
+    emit('fetch-error', error.value);
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+// Watch for changes that should trigger a new fetch
+watch([currentDate, view], () => {
+  if (props.autoFetch && dataSource.value) {
+    fetchEvents();
+  }
+}, { immediate: false });
+
+// Watch for changes to props.events
+watch(() => props.events, (newEvents) => {
+  if (props.events !== localEvents.value) {
+    localEvents.value = [...newEvents];
+  }
+}, { deep: true });
+
+// Public methods to expose
+function refreshEvents(): Promise<void> {
+  return fetchEvents();
+}
+
+// Provide API for child components
+provide('calendarApi', {
+  refreshEvents,
+  isLoading,
+  error,
+  currentDate,
+  view
+});
+
+// Lifecycle hooks
+onMounted(() => {
+  if (props.autoFetch && dataSource.value) {
+    fetchEvents();
+  }
+});
 
 interface DayCell {
   date: Date;
@@ -284,7 +457,7 @@ function isToday(date: Date): boolean {
 }
 
 function eventsForDay(date: Date): CalendarEvent[] {
-  return props.events.filter(event => {
+  return localEvents.value.filter(event => {
     const eventDate = new Date(event.start);
     return eventDate.getDate() === date.getDate() &&
            eventDate.getMonth() === date.getMonth() &&
@@ -353,6 +526,20 @@ function darkenColor(color: string): string {
     return color;
   }
 }
+
+// Expose methods and properties for external usage
+defineExpose({
+  refreshEvents,
+  switchView,
+  goToToday,
+  previousPeriod,
+  nextPeriod,
+  selectDay,
+  isLoading,
+  error,
+  currentDate,
+  view
+});
 </script>
 
 <style>
