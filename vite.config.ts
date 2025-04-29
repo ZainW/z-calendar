@@ -6,7 +6,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import dts from 'vite-plugin-dts'
 
 // https://vite.dev/config/
-export default defineConfig(({ command, mode }) => {
+export default defineConfig(({ mode }) => {
   const isLibraryBuild = mode === 'library';
 
   const config = {

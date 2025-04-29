@@ -5,7 +5,8 @@
         <h2>{{ currentMonthName }} {{ currentYear }}</h2>
       </div>
       <div class="calendar-nav">
-        <button @click="previousPeriod">Previous</button>
+        <button class="icon-button" @click="previousPeriod">&lt;</button>
+        <button class="icon-button" @click="nextPeriod">&gt;</button>
         <div class="view-toggle">
           <button
             :class="{ active: view === 'month' }"
@@ -16,8 +17,8 @@
             @click="switchView('week')"
           >Week</button>
         </div>
-        <button @click="nextPeriod">Next</button>
-        <button @click="goToToday">Today</button>
+
+        <button class="today-button" @click="goToToday">Today</button>
       </div>
     </div>
 
@@ -35,7 +36,8 @@
             {
               'current-month': day.currentMonth,
               'today': isToday(day.date),
-              'has-events': hasEvents(day.date)
+              'has-events': hasEvents(day.date),
+              'other-month': !day.currentMonth
             }
           ]"
           @click="selectDay(day.date)"
@@ -70,7 +72,7 @@
           :class="{ 'today': isToday(day.date) }"
         >
           <div class="weekday">{{ day.weekday }}</div>
-          <div class="day-number">{{ day.dayNumber }}</div>
+          <div class="day-number" :class="{ 'today-circle': isToday(day.date) }">{{ day.dayNumber }}</div>
         </div>
       </div>
       <div class="week-body">
@@ -103,7 +105,8 @@
                 :style="{
                   top: `${calculateEventTop(event)}px`,
                   height: `${calculateEventHeight(event)}px`,
-                  backgroundColor: event.color
+                  backgroundColor: event.color,
+                  borderLeft: `3px solid ${darkenColor(event.color)}`
                 }"
               >
                 {{ event.title }}
@@ -198,7 +201,7 @@ const daysInMonth = computed<DayCell[]>(() => {
   }
 
   // Add days from next month to complete the last week
-  const remainingDays = 42 - days.length; // 6 rows * 7 days = 42
+  const remainingDays = 35 - days.length; // 5 rows * 7 days = 35
   for (let i = 1; i <= remainingDays; i++) {
     const date = new Date(year, month + 1, i);
     days.push({
@@ -328,30 +331,61 @@ function calculateEventHeight(event: CalendarEvent): number {
   const duration = endTime - startTime;
   return duration * hourHeight;
 }
+
+function darkenColor(color: string): string {
+  // Simple function to darken a color by 20%
+  // For more sophisticated color manipulation, consider using a library
+  try {
+    // Handle hex colors
+    if (color.startsWith('#')) {
+      const hex = color.slice(1);
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+
+      const darken = (c: number) => Math.max(0, Math.floor(c * 0.8));
+
+      return `#${darken(r).toString(16).padStart(2, '0')}${darken(g).toString(16).padStart(2, '0')}${darken(b).toString(16).padStart(2, '0')}`;
+    }
+    // For non-hex colors, just return the original
+    return color;
+  } catch {
+    return color;
+  }
+}
 </script>
 
 <style>
 .calendar-container {
-  font-family: Arial, sans-serif;
+  font-family: 'Roboto', 'Arial', sans-serif;
   width: 100%;
   margin: 0 auto;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   border-radius: 8px;
   overflow: hidden;
+  color: #3c4043;
+  background-color: #fff;
 }
 
 .calendar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #e1e1e1;
+  padding: 16px 20px;
+  background-color: #fff;
+  border-bottom: 1px solid #dadce0;
+}
+
+.calendar-title h2 {
+  font-size: 22px;
+  font-weight: 400;
+  margin: 0;
+  color: #3c4043;
 }
 
 .calendar-nav {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
 }
 
@@ -364,10 +398,13 @@ function calculateEventHeight(event: CalendarEvent): number {
 
 .view-toggle button {
   border: none;
-  background: white;
+  background: #fff;
   padding: 8px 16px;
   cursor: pointer;
   transition: background-color 0.2s;
+  font-size: 14px;
+  font-weight: 500;
+  color: #3c4043;
 }
 
 .view-toggle button.active {
@@ -376,16 +413,40 @@ function calculateEventHeight(event: CalendarEvent): number {
 }
 
 button {
-  background-color: white;
+  background-color: #fff;
   border: 1px solid #dadce0;
   border-radius: 4px;
   padding: 8px 16px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
+  font-size: 14px;
+  color: #3c4043;
+}
+
+.icon-button {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 18px;
+  border-radius: 50%;
+}
+
+.today-button {
+  background-color: #1a73e8;
+  color: white;
+  border: none;
+  font-weight: 500;
 }
 
 button:hover {
   background-color: #f1f3f4;
+}
+
+.today-button:hover {
+  background-color: #1967d2;
 }
 
 /* Month View Styles */
@@ -398,28 +459,34 @@ button:hover {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   text-align: center;
-  font-weight: bold;
-  border-bottom: 1px solid #e1e1e1;
+  border-bottom: 1px solid #dadce0;
 }
 
 .weekday {
-  padding: 12px;
+  padding: 10px;
   color: #70757a;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
 }
 
 .days-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-template-rows: repeat(6, 120px);
+  grid-template-rows: repeat(5, minmax(100px, 1fr));
 }
 
 .day-cell {
-  border: 1px solid #e1e1e1;
+  border-right: 1px solid #dadce0;
+  border-bottom: 1px solid #dadce0;
   padding: 8px;
-  background-color: #f8f9fa;
   overflow: hidden;
   cursor: pointer;
   transition: background-color 0.2s;
+}
+
+.day-cell:nth-child(7n) {
+  border-right: none;
 }
 
 .day-cell:hover {
@@ -427,54 +494,57 @@ button:hover {
 }
 
 .day-cell.current-month {
-  background-color: white;
+  background-color: #fff;
+}
+
+.day-cell.other-month {
+  background-color: #f8f9fa;
+  color: #70757a;
 }
 
 .day-cell.today {
   background-color: #e8f0fe;
 }
 
-.day-cell.today .day-number {
-  background-color: #1a73e8;
-  color: white;
-  border-radius: 50%;
-  width: 24px;
+.day-number {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 6px;
   height: 24px;
+  width: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.day-number {
-  font-weight: bold;
-  margin-bottom: 4px;
-  height: 24px;
-  width: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
+.day-cell.today .day-number {
+  background-color: #1a73e8;
+  color: white;
+  border-radius: 50%;
 }
 
 .events-container {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .event {
   font-size: 12px;
-  padding: 2px 4px;
-  border-radius: 2px;
+  padding: 3px 6px;
+  border-radius: 3px;
   color: white;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .more-events {
   font-size: 12px;
   color: #70757a;
-  margin-top: 2px;
+  margin-top: 3px;
+  text-align: center;
 }
 
 /* Week View Styles */
@@ -486,12 +556,13 @@ button:hover {
 
 .week-header {
   display: flex;
-  border-bottom: 1px solid #e1e1e1;
+  border-bottom: 1px solid #dadce0;
+  background-color: #fff;
 }
 
 .time-column {
   width: 60px;
-  border-right: 1px solid #e1e1e1;
+  border-right: 1px solid #dadce0;
 }
 
 .day-column-header {
@@ -500,16 +571,38 @@ button:hover {
   flex-direction: column;
   align-items: center;
   padding: 12px 0;
+  font-size: 13px;
+}
+
+.day-column-header .weekday {
+  font-weight: 500;
+  color: #70757a;
+  padding: 4px 0;
+}
+
+.day-column-header .day-number {
+  font-weight: 500;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.day-number.today-circle {
+  background-color: #1a73e8;
+  color: white;
+  border-radius: 50%;
 }
 
 .day-column-header.today {
-  background-color: #e8f0fe;
+  color: #1a73e8;
 }
 
 .week-body {
   flex: 1;
-  position: relative;
   overflow-y: auto;
+  position: relative;
 }
 
 .time-slots {
@@ -522,9 +615,11 @@ button:hover {
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
-  padding-right: 8px;
+  padding-right: 10px;
   color: #70757a;
-  font-size: 12px;
+  font-size: 11px;
+  position: relative;
+  top: -10px;
 }
 
 .day-columns {
@@ -535,11 +630,15 @@ button:hover {
 .day-column {
   flex: 1;
   position: relative;
-  border-right: 1px solid #e1e1e1;
+  border-right: 1px solid #dadce0;
+}
+
+.day-column:last-child {
+  border-right: none;
 }
 
 .day-column.today {
-  background-color: #e8f0fe;
+  background-color: #fafbff;
 }
 
 .hour-slot {
@@ -547,20 +646,32 @@ button:hover {
   border-bottom: 1px solid #e1e1e1;
 }
 
+.hour-slot:nth-child(odd) {
+  background-color: #fafafa;
+}
+
 .week-event {
   position: absolute;
   left: 2px;
   right: 2px;
-  padding: 4px;
-  border-radius: 4px;
+  padding: 4px 8px;
+  border-radius: 3px;
   color: white;
   font-size: 12px;
   overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  z-index: 10;
+}
+
+.week-event:hover {
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  transform: translateY(-1px);
+  transition: all 0.2s;
 }
 
 .event-time {
   font-size: 10px;
-  opacity: 0.9;
-  margin-top: 2px;
+  opacity: 0.85;
+  margin-top: 3px;
 }
 </style>
