@@ -1,45 +1,74 @@
-# calendar
+# MyCalendar Vue Component
 
-This template should help get you started developing with Vue 3 in Vite.
+A flexible and customizable calendar component for Vue 3 applications.
 
-## Recommended IDE Setup
+## Features
 
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- Month and week views
+- Event display and management
+- Responsive design
+- Easy to integrate
 
-## Type Support for `.vue` Imports in TS
+## Installation
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+```bash
+npm install my-calendar
+# or
+yarn add my-calendar
+# or
+pnpm add my-calendar
+```
 
-## Customize configuration
+## Usage
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+```vue
+<template>
+  <MyCalendar :events="events" />
+</template>
 
-## Project Setup
+<script setup>
+import { MyCalendar } from 'my-calendar';
+import 'my-calendar/dist/style.css'; // Optional: import styles
 
-```sh
+const events = [
+  {
+    id: 1,
+    title: 'Meeting',
+    start: new Date(2023, 9, 15, 10, 0),
+    end: new Date(2023, 9, 15, 11, 30),
+    color: '#4CAF50'
+  },
+  // More events...
+];
+</script>
+```
+
+## Building the Library
+
+Run the following command to build the component as a library:
+
+```bash
+pnpm build:lib
+```
+
+The library will be built to the `dist` directory.
+
+## Development
+
+```bash
+# Install dependencies
 pnpm install
-```
 
-### Compile and Hot-Reload for Development
-
-```sh
+# Start the development server
 pnpm dev
-```
 
-### Type-Check, Compile and Minify for Production
+# Run unit tests
+pnpm test:unit
 
-```sh
+# Build the application
 pnpm build
 ```
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
+## License
 
-```sh
-pnpm test:unit
-```
-
-### Lint with [ESLint](https://eslint.org/)
-
-```sh
-pnpm lint
-```
+MIT
