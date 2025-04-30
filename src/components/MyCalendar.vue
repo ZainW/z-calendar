@@ -525,7 +525,7 @@ function formatEventTime(event: CalendarEvent): string {
 function calculateEventTop(event: CalendarEvent): number {
   const hours = event.start.getHours();
   const minutes = event.start.getMinutes();
-  return (hours * 60 + minutes);
+  return (hours * 60 + minutes) + 60; // Subtract 60 to account for the time label offset
 }
 
 function calculateEventHeight(event: CalendarEvent): number {
@@ -676,13 +676,15 @@ defineExpose({
   error,
   currentDate,
   view,
-  openEventCard // Expose modal opener
+  openEventCard, // Expose modal opener
+  calculateEventHeight,
+  calculateEventTop
 });
 
 // Add getCurrentTimePosition function
 function getCurrentTimePosition(): number {
   const now = new Date();
-  return (now.getHours() * 60) + now.getMinutes();
+  return (now.getHours() * 60) + now.getMinutes() + 60;
 }
 
 // Reference for the week body container
@@ -950,7 +952,6 @@ onMounted(() => {
   display: flex;
   border-bottom: 1px solid #dadce0;
   background: white;
-  height: 60px; /* Reduced height */
   flex-shrink: 0;
   position: relative;
   z-index: 3;
@@ -1021,6 +1022,18 @@ onMounted(() => {
   position: relative;
   display: flex;
   scroll-behavior: smooth;
+  margin-top: 60px; /* Add margin to align with headers */
+}
+
+/* Hide scrollbar but keep functionality */
+.week-body::-webkit-scrollbar {
+  width: 0;
+  background: transparent;
+}
+
+.week-body {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
 }
 
 .time-slots {
@@ -1029,16 +1042,19 @@ onMounted(() => {
   width: 100%;
   position: relative;
   background: white;
+  margin-top: -60px; /* Compensate for the week-body margin */
 }
 
 .time-label {
   width: 50px;
   flex-shrink: 0;
   border-right: 1px solid #dadce0;
+  margin-top: -16px;
   position: sticky;
   left: 0;
   background: white;
   z-index: 2;
+  padding-top: 60px; /* Add padding to align with content */
 }
 
 .time-label > div {
