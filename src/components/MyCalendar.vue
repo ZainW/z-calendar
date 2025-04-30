@@ -52,11 +52,14 @@
               <div
                 v-if="idx < 3"
                 class="event"
-                :style="{ backgroundColor: event.color }"
+                :style="{
+                  backgroundColor: getEventBackground(event.color),
+                  borderLeft: `3px solid ${event.color}`
+                }"
                 draggable="true"
                 @dragstart="onEventDragStart($event, event)"
                 @dragend="onDragEnd()"
-                @click.stop="openEventModal(event)"
+                @click.stop="openEventCard(event, $event.currentTarget as HTMLElement)"
               >
                 {{ event.title }}
               </div>
@@ -73,88 +76,74 @@
     <div v-else-if="view === 'week'" class="week-view">
       <div class="week-header">
         <div class="time-column"></div>
-        <div
-          v-for="(day, index) in currentWeekDays"
-          :key="index"
-          class="day-column-header"
-          :class="{ 'today': isToday(day.date) }"
-        >
-          <div class="weekday">{{ day.weekday }}</div>
-          <div class="day-number" :class="{ 'today-circle': isToday(day.date) }">{{ day.dayNumber }}</div>
-        </div>
-      </div>
-      <div class="week-body">
-        <div class="time-slots">
-          <div class="time-column">
-            <div
-              v-for="hour in hours"
-              :key="hour"
-              class="time-label"
-            >
-              {{ formatHour(hour) }}
+        <div class="day-columns">
+          <div v-for="day in currentWeekDays" :key="day.date.toISOString()" class="day-column">
+            <div class="day-column-header">
+              <div class="weekday">{{ day.weekday }}</div>
+              <div class="day-number" :class="{ 'today': isToday(day.date) }">
+                {{ day.dayNumber }}
+              </div>
             </div>
           </div>
-          <div class="day-columns">
-            <div
-              v-for="(day, dayIndex) in currentWeekDays"
-              :key="dayIndex"
-              class="day-column"
-              :class="{ 'today': isToday(day.date), 'drag-over': isDraggingOver(day.date) }"
-              @dragover.prevent="onDragOver($event, day.date)"
-              @dragleave.prevent="onDragLeave()"
-              @drop.prevent="onWeekDrop($event, day.date)"
-            >
+        </div>
+      </div>
+      <div ref="weekBodyRef" class="week-body">
+        <div class="time-slots">
+          <div class="time-label">
+            <div v-for="hour in 24" :key="hour-1">
+              {{ formatHour(hour - 1) }}
+            </div>
+          </div>
+          <div class="hour-slots">
+            <div v-for="day in currentWeekDays" :key="day.date.toISOString()" class="hour-column">
+              <div v-for="hour in 24" :key="hour" class="hour-slot"></div>
               <div
-                v-for="hour in hours"
-                :key="`${dayIndex}-${hour}`"
-                class="hour-slot"
+                v-if="isToday(day.date)"
+                class="current-time-indicator"
+                :style="{ top: `${getCurrentTimePosition()}px` }"
               ></div>
-              <div
-                v-for="(event, eventIndex) in eventsForDay(day.date)"
-                :key="`event-${eventIndex}`"
-                class="week-event"
-                :style="{
-                  top: `${calculateEventTop(event)}px`,
-                  height: `${calculateEventHeight(event)}px`,
-                  backgroundColor: event.color,
-                  borderLeft: `3px solid ${darkenColor(event.color)}`
-                }"
-                draggable="true"
-                @dragstart="onEventDragStart($event, event)"
-                @dragend="onDragEnd()"
-                @click.stop="openEventModal(event)"
-              >
-                {{ event.title }}
-                <div class="event-time">{{ formatEventTime(event) }}</div>
-              </div>
+              <template v-for="event in eventsForDay(day.date)" :key="event.id">
+                <div
+                  class="week-event"
+                  :style="{
+                    top: `${calculateEventTop(event)}px`,
+                    height: `${calculateEventHeight(event)}px`,
+                    backgroundColor: getEventBackground(event.color),
+                    borderLeft: `3px solid ${event.color}`,
+                    ...calculateEventPosition(event, eventsForDay(day.date))
+                  }"
+                  @click="openEventCard(event, $event.currentTarget as HTMLElement)"
+                >
+                  <div class="event-title">{{ event.title }}</div>
+                  <div class="event-time">{{ formatEventTime(event) }}</div>
+                </div>
+              </template>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Event Modal -->
-    <EventModal
-      :is-open="eventModal.isOpen"
-      :event="eventModal.event"
-      :is-new="eventModal.isNew"
-      :date="eventModal.date"
-      @close="closeEventModal"
-      @save="saveEvent"
-      @delete="deleteEventHandler"
+    <!-- Event Card -->
+    <EventCard
+      :event="selectedEvent"
+      :is-open="isEventCardOpen"
+      :reference-el="selectedEventEl"
+      @close="closeEventCard"
+      @reschedule="rescheduleEvent"
+      @cancel="cancelEvent"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, inject, provide, reactive } from 'vue';
-import EventModal from './EventModal.vue';
+import { ref, computed, watch, onMounted, inject, provide, nextTick } from 'vue';
+import EventCard from './EventCard.vue';
 import {
   type CalendarEvent,
   type CalendarDataSource,
   type CalendarFetchOptions,
   moveEventToDate,
-  type EventModalData
 } from '../utils/calendarDataProvider';
 
 // Define event type
@@ -195,6 +184,12 @@ const props = defineProps({
     type: Boolean,
     required: false,
     default: true
+  },
+  defaultStartHour: {
+    type: Number,
+    required: false,
+    default: 8, // 8 AM default
+    validator: (value: number) => value >= 0 && value < 24
   }
 });
 
@@ -214,13 +209,10 @@ const eventsCache = ref<CalendarCache>({});
 const draggingEvent = ref<CalendarEvent | null>(null);
 const dragOverDate = ref<Date | null>(null);
 
-// Event Modal State
-const eventModal = reactive<EventModalData>({
-  isOpen: false,
-  event: null,
-  isNew: true,
-  date: undefined
-});
+// Event Card State
+const selectedEventEl = ref<HTMLElement | null>(null);
+const selectedEvent = ref<CalendarEvent | null>(null);
+const isEventCardOpen = ref(false);
 
 // Data source - either injected or from props
 const dataSource = computed(() => {
@@ -228,14 +220,18 @@ const dataSource = computed(() => {
 });
 
 // Constants
-const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const months = [
   'January', 'February', 'March',
   'April', 'May', 'June',
   'July', 'August', 'September',
   'October', 'November', 'December'
 ];
-const hours = Array.from({ length: 24 }, (_, i) => i);
+
+// Get localized weekday names - start from Sunday (0) instead of Monday
+const weekdays = Array.from({ length: 7 }, (_, i) => {
+  const date = new Date(2024, 0, i); // Start from index 0 for Sunday
+  return new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date);
+});
 
 // Computed properties
 const currentYear = computed(() => currentDate.value.getFullYear());
@@ -382,6 +378,7 @@ const daysInMonth = computed<DayCell[]>(() => {
   const days: DayCell[] = [];
 
   // Add days from previous month to fill the first week
+  // No need to adjust firstDayWeekday since Sunday is already 0
   const firstDayWeekday = firstDayOfMonth.getDay();
   const prevMonthLastDay = new Date(year, month, 0).getDate();
 
@@ -406,7 +403,7 @@ const daysInMonth = computed<DayCell[]>(() => {
   }
 
   // Add days from next month to complete the last week
-  const gridCellsNeeded = Math.ceil((firstDayWeekday + daysCount) / 7) * 7; // Calculate needed cells
+  const gridCellsNeeded = Math.ceil((firstDayWeekday + daysCount) / 7) * 7;
   const remainingDays = gridCellsNeeded - days.length;
   for (let i = 1; i <= remainingDays; i++) {
     const date = new Date(year, month + 1, i);
@@ -429,7 +426,7 @@ interface WeekDay {
 const currentWeekDays = computed<WeekDay[]>(() => {
   const currentWeekStart = new Date(currentDate.value);
   const day = currentWeekStart.getDay();
-  currentWeekStart.setDate(currentWeekStart.getDate() - day);
+  currentWeekStart.setDate(currentWeekStart.getDate() - day); // No adjustment needed since Sunday is 0
 
   return Array.from({ length: 7 }, (_, i) => {
     const date = new Date(currentWeekStart);
@@ -478,8 +475,8 @@ function goToToday(): void {
 
 function selectDay(date: Date): void {
   selectedDate.value = date;
-  // Open modal to create a new event for this day
-  openEventModal(null, date);
+  // Open card to create a new event for this day
+  openEventCard(null, null);
 }
 
 function isToday(date: Date): boolean {
@@ -495,7 +492,7 @@ function eventsForDay(date: Date): CalendarEvent[] {
     return eventDate.getDate() === date.getDate() &&
            eventDate.getMonth() === date.getMonth() &&
            eventDate.getFullYear() === date.getFullYear();
-  });
+  }).sort((a, b) => a.start.getTime() - b.start.getTime());
 }
 
 function hasEvents(date: Date): boolean {
@@ -505,7 +502,7 @@ function hasEvents(date: Date): boolean {
 function formatHour(hour: number): string {
   if (hour === 0) return '12 AM';
   if (hour === 12) return '12 PM';
-  return hour < 12 ? `${hour} AM` : `${hour - 12} PM`;
+  return `${hour % 12 || 12} ${hour < 12 ? 'AM' : 'PM'}`;
 }
 
 function formatEventTime(event: CalendarEvent): string {
@@ -524,35 +521,52 @@ function formatEventTime(event: CalendarEvent): string {
 }
 
 function calculateEventTop(event: CalendarEvent): number {
-  const hourHeight = 60; // height in pixels per hour
-  const startHour = event.start.getHours();
-  const startMinute = event.start.getMinutes();
-  return (startHour * hourHeight) + (startMinute / 60 * hourHeight);
+  const hours = event.start.getHours();
+  const minutes = event.start.getMinutes();
+  return (hours * 60) + minutes;
+}
+
+// Add function to handle overlapping events
+function calculateEventPosition(event: CalendarEvent, allDayEvents: CalendarEvent[]): { left: string, width: string } {
+  const overlappingEvents = allDayEvents.filter(e => {
+    return e.start < event.end && e.end > event.start;
+  });
+
+  const index = overlappingEvents.indexOf(event);
+  const totalOverlap = overlappingEvents.length;
+
+  if (totalOverlap <= 1) {
+    return { left: '2px', width: 'calc(100% - 4px)' };
+  }
+
+  // Adjust the width calculation to use more space
+  const width = Math.min(90, (98 / totalOverlap)); // Max width of 90%, min gap of 2%
+  const left = (index * (100 - width)) / (totalOverlap - 1); // Distribute remaining space evenly
+
+  return {
+    left: `${left}%`,
+    width: `${width}%`
+  };
 }
 
 function calculateEventHeight(event: CalendarEvent): number {
-  const hourHeight = 60; // height in pixels per hour
-  const startTime = event.start.getHours() + (event.start.getMinutes() / 60);
-  const endTime = event.end.getHours() + (event.end.getMinutes() / 60);
-  const duration = endTime - startTime;
-  return Math.max(duration * hourHeight, 20); // Ensure minimum height
+  const duration = event.end.getTime() - event.start.getTime();
+  const minutes = duration / (1000 * 60);
+  return Math.max(minutes, 30); // Minimum height of 30px
 }
 
-function darkenColor(color: string): string {
+function getEventBackground(color: string): string {
   try {
     if (color.startsWith('#')) {
       const hex = color.slice(1);
       const r = parseInt(hex.slice(0, 2), 16);
       const g = parseInt(hex.slice(2, 4), 16);
       const b = parseInt(hex.slice(4, 6), 16);
-
-      const darken = (c: number) => Math.max(0, Math.floor(c * 0.8));
-
-      return `#${darken(r).toString(16).padStart(2, '0')}${darken(g).toString(16).padStart(2, '0')}${darken(b).toString(16).padStart(2, '0')}`;
+      return `rgba(${r}, ${g}, ${b}, 0.1)`;
     }
     return color;
   } catch {
-    return color;
+    return '#f8f9fa';
   }
 }
 
@@ -588,51 +602,22 @@ function onDayDrop(event: DragEvent, date: Date) {
   event.preventDefault();
   if (draggingEvent.value) {
     const movedEvent = moveEventToDate(draggingEvent.value, date);
-    // Open modal to confirm or edit time
-    openEventModal(movedEvent, date, false); // isNew = false since it's a move
+    openEventCard(movedEvent, null);
   }
-  onDragEnd(); // Clean up drag state
-}
-
-function onWeekDrop(event: DragEvent, date: Date) {
-  event.preventDefault();
-  if (draggingEvent.value && event.target instanceof HTMLElement) {
-    const dayColumn = event.target.closest('.day-column') as HTMLElement;
-    if (!dayColumn) return;
-
-    const hourHeight = 60; // Must match CSS
-    const rect = dayColumn.getBoundingClientRect();
-    const dropY = event.clientY - rect.top; // Position within the column
-
-    const dropHour = Math.floor(dropY / hourHeight);
-    const dropMinute = Math.floor(((dropY % hourHeight) / hourHeight) * 60 / 15) * 15; // Snap to 15 mins
-
-    const currentEvent = draggingEvent.value;
-    const duration = currentEvent.end.getTime() - currentEvent.start.getTime();
-
-    const newStart = new Date(date);
-    newStart.setHours(dropHour, dropMinute, 0, 0);
-
-    const newEnd = new Date(newStart.getTime() + duration);
-
-    updateLocalEvent(currentEvent.id, { start: newStart, end: newEnd });
-  }
-  onDragEnd(); // Clean up drag state
+  onDragEnd();
 }
 
 // --- Event Management Methods ---
-function openEventModal(event: CalendarEvent | null, date?: Date, isNew = true) {
-  eventModal.isOpen = true;
-  eventModal.event = event ? { ...event } : null;
-  eventModal.isNew = !event && isNew; // If no event, it's new (unless coming from day drop)
-  eventModal.date = event ? undefined : date;
+function openEventCard(event: CalendarEvent | null, element: HTMLElement | null) {
+  selectedEvent.value = event;
+  selectedEventEl.value = element;
+  isEventCardOpen.value = true;
 }
 
-function closeEventModal() {
-  eventModal.isOpen = false;
-  eventModal.event = null;
-  eventModal.isNew = true;
-  eventModal.date = undefined;
+function closeEventCard() {
+  isEventCardOpen.value = false;
+  selectedEvent.value = null;
+  selectedEventEl.value = null;
 }
 
 function updateLocalEvent(id: string | number, updates: Partial<CalendarEvent>) {
@@ -640,7 +625,7 @@ function updateLocalEvent(id: string | number, updates: Partial<CalendarEvent>) 
   if (index !== -1) {
     localEvents.value[index] = { ...localEvents.value[index], ...updates };
     emit('event-updated', localEvents.value[index]);
-    emit('update:events', [...localEvents.value]); // Emit updated array
+    emit('update:events', [...localEvents.value]);
     return localEvents.value[index];
   }
   return null;
@@ -664,20 +649,19 @@ function deleteLocalEvent(id: string | number) {
   return null;
 }
 
-// Modal save handler
-function saveEvent(eventToSave: CalendarEvent) {
-  if (eventModal.isNew) {
-    addLocalEvent(eventToSave);
-  } else {
-    updateLocalEvent(eventToSave.id, eventToSave);
+function rescheduleEvent() {
+  if (selectedEvent.value) {
+    // Here you would typically show a date picker or some UI to select new time
+    // For now, we'll just close the card
+    closeEventCard();
   }
-  closeEventModal();
 }
 
-// Modal delete handler
-function deleteEventHandler(id: string | number) {
-  deleteLocalEvent(id);
-  closeEventModal();
+function cancelEvent() {
+  if (selectedEvent.value) {
+    deleteLocalEvent(selectedEvent.value.id);
+  }
+  closeEventCard();
 }
 
 // Expose methods and properties for external usage
@@ -692,108 +676,148 @@ defineExpose({
   error,
   currentDate,
   view,
-  openEventModal // Expose modal opener
+  openEventCard // Expose modal opener
+});
+
+// Add getCurrentTimePosition function
+function getCurrentTimePosition(): number {
+  const now = new Date();
+  return (now.getHours() * 60) + now.getMinutes();
+}
+
+// Reference for the week body container
+const weekBodyRef = ref<HTMLElement | null>(null);
+
+// Scroll to default hour
+function scrollToHour(hour: number) {
+  if (weekBodyRef.value) {
+    const pixelsPerHour = 60; // height of each hour slot
+    const scrollTop = hour * pixelsPerHour;
+    weekBodyRef.value.scrollTop = scrollTop;
+  }
+}
+
+// Watch for view changes to apply scroll position
+watch(view, (newView) => {
+  if (newView === 'week') {
+    // Use nextTick to ensure the DOM is updated
+    nextTick(() => {
+      scrollToHour(props.defaultStartHour);
+    });
+  }
+});
+
+// Apply initial scroll position when mounted
+onMounted(() => {
+  if (view.value === 'week') {
+    scrollToHour(props.defaultStartHour);
+  }
 });
 </script>
 
 <style>
 .calendar-container {
-  font-family: 'Roboto', 'Arial', sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   width: 100%;
-  margin: 0 auto;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  overflow: hidden;
-  color: #3c4043;
   background-color: #fff;
+  color: #333;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .calendar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  background-color: #fff;
+  padding: 16px 24px;
   border-bottom: 1px solid #dadce0;
 }
 
+.calendar-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .calendar-title h2 {
-  font-size: 22px;
-  font-weight: 400;
+  font-size: 20px;
+  font-weight: 500;
+  color: #333;
   margin: 0;
-  color: #3c4043;
 }
 
 .calendar-nav {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
-.view-toggle {
-  display: flex;
-  border: 1px solid #dadce0;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.view-toggle button {
-  border: none;
-  background: #fff;
-  padding: 8px 16px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  font-size: 14px;
-  font-weight: 500;
-  color: #3c4043;
-}
-
-.view-toggle button.active {
-  background-color: #1a73e8;
-  color: white;
-}
-
-button {
-  background-color: #fff;
-  border: 1px solid #dadce0;
-  border-radius: 4px;
-  padding: 8px 16px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 14px;
-  color: #3c4043;
-}
-
 .icon-button {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   font-size: 18px;
-  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 0;
+  margin: 0 8px;
+}
+
+.view-toggle button {
+  padding: 6px 16px;
+  font-size: 14px;
+  border: 1px solid #dadce0;
+  background: white;
+  color: #333;
+  cursor: pointer;
+}
+
+.view-toggle button:first-child {
+  border-radius: 4px 0 0 4px;
+  border-right: none;
+}
+
+.view-toggle button:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.view-toggle button.active {
+  background-color: #1a73e8;
+  color: white;
+  border-color: #1a73e8;
 }
 
 .today-button {
-  background-color: #1a73e8;
-  color: white;
-  border: none;
-  font-weight: 500;
-}
-
-button:hover {
-  background-color: #f1f3f4;
-}
-
-.today-button:hover {
-  background-color: #1967d2;
+  padding: 6px 16px;
+  font-size: 14px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  background: white;
+  color: #333;
+  cursor: pointer;
 }
 
 /* Month View Styles */
 .month-view {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .weekdays {
@@ -801,12 +825,13 @@ button:hover {
   grid-template-columns: repeat(7, 1fr);
   text-align: center;
   border-bottom: 1px solid #dadce0;
+  padding: 0;
 }
 
 .weekday {
-  padding: 10px;
+  padding: 12px 0;
   color: #70757a;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   text-transform: uppercase;
 }
@@ -814,7 +839,8 @@ button:hover {
 .days-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-template-rows: repeat(5, minmax(100px, 1fr));
+  grid-auto-rows: minmax(100px, 1fr);
+  flex: 1;
 }
 
 .day-cell {
@@ -822,20 +848,10 @@ button:hover {
   border-bottom: 1px solid #dadce0;
   padding: 8px;
   overflow: hidden;
-  cursor: pointer;
-  transition: background-color 0.2s;
 }
 
 .day-cell:nth-child(7n) {
   border-right: none;
-}
-
-.day-cell:hover {
-  background-color: #f1f3f4;
-}
-
-.day-cell.current-month {
-  background-color: #fff;
 }
 
 .day-cell.other-month {
@@ -843,14 +859,9 @@ button:hover {
   color: #70757a;
 }
 
-.day-cell.today {
-  background-color: #e8f0fe;
-}
-
-.day-number {
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 6px;
+.day-cell .day-number {
+  font-size: 12px;
+  margin-bottom: 4px;
   height: 24px;
   width: 24px;
   display: flex;
@@ -867,100 +878,54 @@ button:hover {
 .events-container {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .event {
   font-size: 12px;
-  padding: 3px 6px;
+  padding: 2px 8px;
   border-radius: 3px;
-  color: white;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  margin-bottom: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.event:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .more-events {
   font-size: 12px;
   color: #70757a;
-  margin-top: 3px;
-  text-align: center;
+  padding: 2px 8px;
+  margin-top: 2px;
 }
 
 /* Week View Styles */
 .week-view {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  height: 800px;
+  overflow: hidden;
+  background: white;
 }
 
 .week-header {
   display: flex;
   border-bottom: 1px solid #dadce0;
-  background-color: #fff;
+  background: white;
+  padding: 0;
+  height: 76px;
 }
 
 .time-column {
-  width: 60px;
+  width: 50px;
+  flex-shrink: 0;
   border-right: 1px solid #dadce0;
-}
-
-.day-column-header {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px 0;
-  font-size: 13px;
-}
-
-.day-column-header .weekday {
-  font-weight: 500;
-  color: #70757a;
-  padding: 4px 0;
-}
-
-.day-column-header .day-number {
-  font-weight: 500;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.day-number.today-circle {
-  background-color: #1a73e8;
-  color: white;
-  border-radius: 50%;
-}
-
-.day-column-header.today {
-  color: #1a73e8;
-}
-
-.week-body {
-  flex: 1;
-  overflow-y: auto;
-  position: relative;
-}
-
-.time-slots {
-  display: flex;
-  height: 100%;
-}
-
-.time-label {
-  height: 60px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  padding-right: 10px;
-  color: #70757a;
-  font-size: 11px;
-  position: relative;
-  top: -10px;
 }
 
 .day-columns {
@@ -970,63 +935,181 @@ button:hover {
 
 .day-column {
   flex: 1;
-  position: relative;
   border-right: 1px solid #dadce0;
+  min-width: 150px;
 }
 
 .day-column:last-child {
   border-right: none;
 }
 
-.day-column.today {
-  background-color: #fafbff;
+.day-column-header {
+  padding: 8px;
+  text-align: center;
 }
 
-.hour-slot {
+.day-column-header .weekday {
+  padding: 0;
+  margin-bottom: 8px;
+  color: #70757a;
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.day-column-header .day-number {
+  font-size: 26px;
+  color: #333;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.day-column-header .day-number.today {
+  color: #1a73e8;
+}
+
+/* Ensure the header columns match the body columns */
+.week-header .day-columns {
+  display: flex;
+  flex: 1;
+}
+
+.week-header .day-column {
+  flex: 1;
+  min-width: 150px;
+  border-right: 1px solid #dadce0;
+  display: flex;
+  flex-direction: column;
+}
+
+.week-header .day-column:last-child {
+  border-right: none;
+}
+
+.week-header .day-column-header {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Ensure body columns align with header */
+.week-body {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+  display: flex;
+  scroll-behavior: smooth; /* Add smooth scrolling */
+}
+
+.time-slots {
+  display: flex;
+  min-height: 1440px; /* 24 hours * 60px */
+  width: 100%;
+}
+
+.time-label {
+  width: 50px;
+  flex-shrink: 0;
+  border-right: 1px solid #dadce0;
+  position: relative;
+}
+
+.time-label > div {
   height: 60px;
-  border-bottom: 1px solid #e1e1e1;
+  padding-right: 8px;
+  text-align: right;
+  font-size: 10px;
+  color: #70757a;
+  position: relative;
+  top: -9px; /* Adjusted from -6px to -9px for better alignment */
+  line-height: 1;
 }
 
-.hour-slot:nth-child(odd) {
-  background-color: #fafafa;
+.hour-slots {
+  flex: 1;
+  display: flex;
+  position: relative;
+  margin-top: -1px; /* Fix grid alignment */
+}
+
+.hour-column {
+  flex: 1;
+  min-width: 150px;
+  border-right: 1px solid #dadce0;
+  position: relative;
+}
+
+.hour-column:last-child {
+  border-right: none;
+}
+
+.current-time-indicator {
+  position: absolute;
+  left: -1px;
+  right: 0;
+  height: 2px;
+  background-color: #ea4335;
+  z-index: 3; /* Ensure time indicator is above events */
+}
+
+.current-time-indicator::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  background-color: #ea4335;
+  border-radius: 50%;
 }
 
 .week-event {
   position: absolute;
-  left: 2px;
-  right: 2px;
   padding: 4px 8px;
-  border-radius: 3px;
-  color: white;
   font-size: 12px;
+  color: #333;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  z-index: 10;
+  z-index: 2;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 80px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .week-event:hover {
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-  transform: translateY(-1px);
-  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  z-index: 4;
 }
 
-.event-time {
-  font-size: 10px;
-  opacity: 0.85;
-  margin-top: 3px;
+.week-event .event-title {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 4px;
 }
 
-.day-cell.drag-over {
-  background-color: #e8f0fe !important; /* Use important to override other background colors */
-  box-shadow: inset 0 0 0 2px #1a73e8;
+.week-event .event-time {
+  font-size: 11px;
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.day-column.drag-over {
-  background-color: #f1f8ff !important;
+.hour-slot {
+  height: 60px;
+  border-bottom: 1px solid #dadce0;
+  position: relative;
+  z-index: 1;
 }
 
-.event.dragging {
-  opacity: 0.5;
-  cursor: grabbing;
+.hour-slot:last-child {
+  border-bottom: none;
 }
 </style>

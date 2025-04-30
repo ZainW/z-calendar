@@ -7,6 +7,12 @@ export interface CalendarEvent {
   start: Date;
   end: Date;
   color: string;
+  organizer?: string;
+  email?: string;
+  to?: string;
+  location?: string;
+  description?: string;
+  tags?: string[];
 }
 
 // Raw event data type from API
