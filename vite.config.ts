@@ -38,7 +38,7 @@ export default defineConfig(({ mode }) => {
           fileName: (format) => `my-calendar.${format}.js`,
         },
         rollupOptions: {
-          external: ['vue'],
+          external: ['vue', '@fontsource/inter'],
           output: {
             globals: {
               vue: 'Vue'
@@ -46,6 +46,9 @@ export default defineConfig(({ mode }) => {
             exports: 'named',
           }
         },
+        // Copy font files to dist but don't include them in the bundle
+        assetsInclude: ['**/*.woff', '**/*.woff2'],
+        copyPublicDir: true,
       },
     };
   }

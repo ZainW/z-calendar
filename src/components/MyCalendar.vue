@@ -114,8 +114,10 @@
                   }"
                   @click="openEventCard(event, $event.currentTarget as HTMLElement)"
                 >
-                  <div class="event-title">{{ event.title }}</div>
-                  <div class="event-time">{{ formatEventTime(event) }}</div>
+                  <div class="event-content">
+                    <div class="event-title">{{ event.title }}</div>
+                    <div class="event-time">{{ formatEventTime(event) }}</div>
+                  </div>
                 </div>
               </template>
             </div>
@@ -502,7 +504,7 @@ function hasEvents(date: Date): boolean {
 function formatHour(hour: number): string {
   if (hour === 0) return '12 AM';
   if (hour === 12) return '12 PM';
-  return `${hour % 12 || 12} ${hour < 12 ? 'AM' : 'PM'}`;
+  return `${hour % 12} ${hour < 12 ? 'AM' : 'PM'}`;
 }
 
 function formatEventTime(event: CalendarEvent): string {
@@ -514,7 +516,7 @@ function formatEventTime(event: CalendarEvent): string {
   const formatTime = (hour: number, minute: number): string => {
     const hourFormat = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
     const period = hour >= 12 ? 'PM' : 'AM';
-    return `${hourFormat}:${minute.toString().padStart(2, '0')} ${period}`;
+    return `${hourFormat}${minute > 0 ? ':' + minute.toString().padStart(2, '0') : ''} ${period}`;
   };
 
   return `${formatTime(startHour, startMinutes)} - ${formatTime(endHour, endMinutes)}`;
@@ -523,10 +525,15 @@ function formatEventTime(event: CalendarEvent): string {
 function calculateEventTop(event: CalendarEvent): number {
   const hours = event.start.getHours();
   const minutes = event.start.getMinutes();
-  return (hours * 60) + minutes;
+  return (hours * 60 + minutes);
 }
 
-// Add function to handle overlapping events
+function calculateEventHeight(event: CalendarEvent): number {
+  const duration = event.end.getTime() - event.start.getTime();
+  const minutes = duration / (1000 * 60);
+  return Math.max(minutes, 45); // Minimum height of 45px to prevent text cutoff
+}
+
 function calculateEventPosition(event: CalendarEvent, allDayEvents: CalendarEvent[]): { left: string, width: string } {
   const overlappingEvents = allDayEvents.filter(e => {
     return e.start < event.end && e.end > event.start;
@@ -536,23 +543,16 @@ function calculateEventPosition(event: CalendarEvent, allDayEvents: CalendarEven
   const totalOverlap = overlappingEvents.length;
 
   if (totalOverlap <= 1) {
-    return { left: '2px', width: 'calc(100% - 4px)' };
+    return { left: '1%', width: '98%' };
   }
 
-  // Adjust the width calculation to use more space
-  const width = Math.min(90, (98 / totalOverlap)); // Max width of 90%, min gap of 2%
-  const left = (index * (100 - width)) / (totalOverlap - 1); // Distribute remaining space evenly
+  const width = Math.min(95, (98 / totalOverlap)); // Max width of 95%, min gap of 2%
+  const left = (index * (100 - width)) / (totalOverlap - 1);
 
   return {
     left: `${left}%`,
     width: `${width}%`
   };
-}
-
-function calculateEventHeight(event: CalendarEvent): number {
-  const duration = event.end.getTime() - event.start.getTime();
-  const minutes = duration / (1000 * 60);
-  return Math.max(minutes, 30); // Minimum height of 30px
 }
 
 function getEventBackground(color: string): string {
@@ -716,14 +716,50 @@ onMounted(() => {
 </script>
 
 <style>
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+
 .calendar-container {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   width: 100%;
   background-color: #fff;
   color: #333;
   height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+/* Add font-family to all text elements */
+.calendar-title h2,
+.icon-button,
+.view-toggle button,
+.today-button,
+.weekday,
+.day-number,
+.event,
+.more-events,
+.event-title,
+.event-time,
+.time-label > div {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Specific font weights */
+.calendar-title h2,
+.day-column-header .day-number.today,
+.event-title {
+  font-weight: 500;
+}
+
+.view-toggle button.active,
+.today-button {
+  font-weight: 500;
+}
+
+.weekday,
+.event-time {
+  font-weight: 400;
 }
 
 .calendar-header {
@@ -911,15 +947,17 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: white;
+  height: calc(100vh - 120px);
 }
 
 .week-header {
   display: flex;
   border-bottom: 1px solid #dadce0;
   background: white;
-  padding: 0;
-  height: 76px;
+  height: 60px; /* Reduced height */
+  flex-shrink: 0;
+  position: relative;
+  z-index: 3;
 }
 
 .time-column {
@@ -929,14 +967,14 @@ onMounted(() => {
 }
 
 .day-columns {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
   flex: 1;
 }
 
 .day-column {
-  flex: 1;
   border-right: 1px solid #dadce0;
-  min-width: 150px;
+  min-width: 0;
 }
 
 .day-column:last-child {
@@ -944,75 +982,67 @@ onMounted(() => {
 }
 
 .day-column-header {
-  padding: 8px;
+  padding: 4px;
   text-align: center;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  background: white;
 }
 
 .day-column-header .weekday {
-  padding: 0;
-  margin-bottom: 8px;
-  color: #70757a;
   font-size: 11px;
+  color: #70757a;
   text-transform: uppercase;
   font-weight: 500;
 }
 
 .day-column-header .day-number {
-  font-size: 26px;
+  font-size: 20px;
   color: #333;
   font-weight: 400;
-  line-height: 1;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
 }
 
 .day-column-header .day-number.today {
-  color: #1a73e8;
+  background-color: #1a73e8;
+  color: white;
+  font-weight: 500;
 }
 
-/* Ensure the header columns match the body columns */
-.week-header .day-columns {
-  display: flex;
-  flex: 1;
-}
-
-.week-header .day-column {
-  flex: 1;
-  min-width: 150px;
-  border-right: 1px solid #dadce0;
-  display: flex;
-  flex-direction: column;
-}
-
-.week-header .day-column:last-child {
-  border-right: none;
-}
-
-.week-header .day-column-header {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-/* Ensure body columns align with header */
 .week-body {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
   display: flex;
-  scroll-behavior: smooth; /* Add smooth scrolling */
+  scroll-behavior: smooth;
 }
 
 .time-slots {
   display: flex;
   min-height: 1440px; /* 24 hours * 60px */
   width: 100%;
+  position: relative;
+  background: white;
 }
 
 .time-label {
   width: 50px;
   flex-shrink: 0;
   border-right: 1px solid #dadce0;
-  position: relative;
+  position: sticky;
+  left: 0;
+  background: white;
+  z-index: 2;
 }
 
 .time-label > div {
@@ -1022,35 +1052,89 @@ onMounted(() => {
   font-size: 10px;
   color: #70757a;
   position: relative;
-  top: -9px; /* Adjusted from -6px to -9px for better alignment */
-  line-height: 1;
+  top: 8px; /* Shift time labels down */
 }
 
 .hour-slots {
   flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  position: relative;
+  min-height: 1440px;
+}
+
+.hour-slot {
+  height: 60px;
+  border-bottom: 1px solid #dadce0;
+  position: relative;
+  min-height: 60px;
+  box-sizing: border-box;
+}
+
+.hour-slot:last-child {
+  border-bottom: none;
+}
+
+.week-event {
+  position: absolute;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #333;
+  overflow: hidden;
+  z-index: 2;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  margin: 0 1px;
+  min-height: 35px;
+  width: calc(100% - 4px);
+  left: 2px;
+}
+
+.week-event:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  z-index: 4;
+}
+
+.event-content {
+  height: 100%;
   display: flex;
-  position: relative;
-  margin-top: -1px; /* Fix grid alignment */
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 3px;
 }
 
-.hour-column {
-  flex: 1;
-  min-width: 150px;
-  border-right: 1px solid #dadce0;
-  position: relative;
+.event-title {
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #333;
+  margin-bottom: 2px;
 }
 
-.hour-column:last-child {
-  border-right: none;
+.event-time {
+  font-size: 11px;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #5f6368;
+  opacity: 0.9;
 }
 
 .current-time-indicator {
   position: absolute;
-  left: -1px;
+  left: 0;
   right: 0;
   height: 2px;
   background-color: #ea4335;
-  z-index: 3; /* Ensure time indicator is above events */
+  z-index: 3;
+  transform: translateY(-1px);
 }
 
 .current-time-indicator::before {
@@ -1064,52 +1148,14 @@ onMounted(() => {
   border-radius: 50%;
 }
 
-.week-event {
-  position: absolute;
-  padding: 4px 8px;
-  font-size: 12px;
-  color: #333;
-  overflow: hidden;
-  z-index: 2;
-  border-radius: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  min-width: 80px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.week-event:hover {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-  z-index: 4;
-}
-
-.week-event .event-title {
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-right: 4px;
-}
-
-.week-event .event-time {
-  font-size: 11px;
-  opacity: 0.8;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.hour-slot {
-  height: 60px;
-  border-bottom: 1px solid #dadce0;
+.hour-column {
+  border-right: 1px solid #dadce0;
+  min-width: 0;
   position: relative;
-  z-index: 1;
+  overflow: visible;
 }
 
-.hour-slot:last-child {
-  border-bottom: none;
+.hour-column:last-child {
+  border-right: none;
 }
 </style>
