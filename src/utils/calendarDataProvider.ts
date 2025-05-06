@@ -23,7 +23,7 @@ export interface RawEventData {
 export interface CalendarFetchOptions {
   start: Date;
   end: Date;
-  view: 'month' | 'week';
+  view: 'month' | 'week' | 'day';
 }
 
 export interface CalendarDataSource {
