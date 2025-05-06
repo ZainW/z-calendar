@@ -525,7 +525,7 @@ function formatEventTime(event: CalendarEvent): string {
 function calculateEventTop(event: CalendarEvent): number {
   const hours = event.start.getHours();
   const minutes = event.start.getMinutes();
-  return (hours * 60 + minutes) + 60; // Subtract 60 to account for the time label offset
+  return (hours * 60 + minutes); // Subtract 60 to account for the time label offset
 }
 
 function calculateEventHeight(event: CalendarEvent): number {
@@ -955,23 +955,39 @@ onMounted(() => {
   flex-shrink: 0;
   position: relative;
   z-index: 3;
+  height: 60px;
+  align-items: center;
+  margin-bottom: 0;
+  padding: 0;
 }
 
 .time-column {
   width: 50px;
   flex-shrink: 0;
   border-right: 1px solid #dadce0;
+  background: white;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .day-columns {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   flex: 1;
+  background: white;
+  height: 100%;
 }
 
 .day-column {
   border-right: 1px solid #dadce0;
   min-width: 0;
+  background: white;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .day-column:last-child {
@@ -979,15 +995,14 @@ onMounted(() => {
 }
 
 .day-column-header {
-  padding: 4px;
-  text-align: center;
-  height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: transparent;
+  padding: 0;
   gap: 2px;
-  background: white;
 }
 
 .day-column-header .weekday {
@@ -1007,6 +1022,8 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+  background: transparent;
+  transition: background 0.2s, color 0.2s;
 }
 
 .day-column-header .day-number.today {
@@ -1022,7 +1039,8 @@ onMounted(() => {
   position: relative;
   display: flex;
   scroll-behavior: smooth;
-  margin-top: 60px; /* Add margin to align with headers */
+  margin-top: 0;
+  background: #fff;
 }
 
 /* Hide scrollbar but keep functionality */
@@ -1042,19 +1060,22 @@ onMounted(() => {
   width: 100%;
   position: relative;
   background: white;
-  margin-top: -60px; /* Compensate for the week-body margin */
+  margin-top: 0;
 }
 
 .time-label {
   width: 50px;
   flex-shrink: 0;
   border-right: 1px solid #dadce0;
-  margin-top: -16px;
-  position: sticky;
-  left: 0;
   background: white;
   z-index: 2;
-  padding-top: 60px; /* Add padding to align with content */
+  padding: 0;
+  text-align: right;
+  position: sticky;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
 }
 
 .time-label > div {
@@ -1064,7 +1085,12 @@ onMounted(() => {
   font-size: 10px;
   color: #70757a;
   position: relative;
-  top: 8px; /* Shift time labels down */
+  top: 0;
+  border-top: 1px solid #dadce0;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .hour-slots {
@@ -1073,6 +1099,7 @@ onMounted(() => {
   grid-template-columns: repeat(7, 1fr);
   position: relative;
   min-height: 1440px;
+  background: #fff;
 }
 
 .hour-slot {
@@ -1081,6 +1108,7 @@ onMounted(() => {
   position: relative;
   min-height: 60px;
   box-sizing: border-box;
+  background: #fff;
 }
 
 .hour-slot:last-child {
@@ -1165,6 +1193,7 @@ onMounted(() => {
   min-width: 0;
   position: relative;
   overflow: visible;
+  background: #fff;
 }
 
 .hour-column:last-child {
