@@ -16,6 +16,10 @@
             :class="{ active: view === 'week' }"
             @click="switchView('week')"
           >Week</button>
+          <button
+            :class="{ active: view === 'day' }"
+            @click="switchView('day')"
+          >Day</button>
         </div>
 
         <button class="today-button" @click="goToToday">Today</button>
@@ -126,6 +130,58 @@
       </div>
     </div>
 
+    <!-- Day View -->
+    <div v-else-if="view === 'day'" class="day-view">
+      <div class="day-header">
+        <div class="time-column day-time-column"></div>
+        <div class="day-column-wrapper">
+          <div class="day-column-header">
+            <div class="day-weekday">{{ currentDayName }}</div>
+            <div class="day-number" :class="{ 'today': isToday(currentDate) }">
+              {{ currentDate.getDate() }}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div ref="dayBodyRef" class="day-body">
+        <div class="day-time-slots">
+          <div class="time-label day-time-label">
+            <div v-for="hour in 24" :key="hour-1">
+              {{ formatHour(hour - 1) }}
+            </div>
+          </div>
+          <div class="day-hour-slots">
+            <div class="day-hour-column">
+              <div v-for="hour in 24" :key="hour" class="day-hour-slot"></div>
+              <div
+                v-if="isToday(currentDate)"
+                class="current-time-indicator day-current-time-indicator"
+                :style="{ top: `${getCurrentTimePosition()}px` }"
+              ></div>
+              <template v-for="event in eventsForDay(currentDate)" :key="event.id">
+                <div
+                  class="day-event"
+                  :style="{
+                    top: `${calculateEventTop(event)}px`,
+                    height: `${calculateEventHeight(event)}px`,
+                    backgroundColor: getEventBackground(event.color),
+                    borderLeft: `3px solid ${event.color}`
+                  }"
+                  @click="openEventCard(event, $event.currentTarget as HTMLElement)"
+                >
+                  <div class="event-content">
+                    <div class="event-title">{{ event.title }}</div>
+                    <div class="event-time">{{ formatEventTime(event) }}</div>
+                    <div class="event-description" v-if="event.description">{{ event.description }}</div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Event Card -->
     <EventCard
       :event="selectedEvent"
@@ -199,7 +255,7 @@ const props = defineProps({
 const emit = defineEmits(['update:events', 'fetch-start', 'fetch-success', 'fetch-error', 'event-updated', 'event-added', 'event-deleted']); // Added event emits
 
 // State
-const view = ref<'month' | 'week'>('month');
+const view = ref<'month' | 'week' | 'day'>('month');
 const currentDate = ref(new Date());
 const selectedDate = ref<Date | null>(null);
 const localEvents = ref<CalendarEvent[]>([...props.events]);
@@ -240,6 +296,12 @@ const currentYear = computed(() => currentDate.value.getFullYear());
 const currentMonthIndex = computed(() => currentDate.value.getMonth());
 const currentMonthName = computed(() => months[currentMonthIndex.value]);
 
+// Add computed property for the current day name
+const currentDayName = computed(() => {
+  const date = new Date(currentDate.value);
+  return new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(date);
+});
+
 // Calculate fetch range based on view
 const fetchRange = computed(() => {
   const start = new Date(currentDate.value);
@@ -259,11 +321,15 @@ const fetchRange = computed(() => {
     const lastDay = new Date(end);
     const nextMonthDays = 6 - lastDay.getDay();
     end.setDate(end.getDate() + nextMonthDays);
-  } else {
+  } else if (view.value === 'week') {
     // Week view
     const day = start.getDay();
     start.setDate(start.getDate() - day); // First day of week
     end.setDate(end.getDate() + (6 - day)); // Last day of week
+  } else if (view.value === 'day') {
+    // Day view - just the current day
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
   }
 
   return { start, end };
@@ -443,7 +509,7 @@ const currentWeekDays = computed<WeekDay[]>(() => {
 });
 
 // Methods
-function switchView(newView: 'month' | 'week'): void {
+function switchView(newView: 'month' | 'week' | 'day'): void {
   view.value = newView;
 }
 
@@ -452,8 +518,10 @@ function previousPeriod(): void {
 
   if (view.value === 'month') {
     date.setMonth(date.getMonth() - 1);
-  } else {
+  } else if (view.value === 'week') {
     date.setDate(date.getDate() - 7);
+  } else if (view.value === 'day') {
+    date.setDate(date.getDate() - 1);
   }
 
   currentDate.value = date;
@@ -464,8 +532,10 @@ function nextPeriod(): void {
 
   if (view.value === 'month') {
     date.setMonth(date.getMonth() + 1);
-  } else {
+  } else if (view.value === 'week') {
     date.setDate(date.getDate() + 7);
+  } else if (view.value === 'day') {
+    date.setDate(date.getDate() + 1);
   }
 
   currentDate.value = date;
@@ -620,24 +690,6 @@ function closeEventCard() {
   selectedEventEl.value = null;
 }
 
-function updateLocalEvent(id: string | number, updates: Partial<CalendarEvent>) {
-  const index = localEvents.value.findIndex(e => e.id === id);
-  if (index !== -1) {
-    localEvents.value[index] = { ...localEvents.value[index], ...updates };
-    emit('event-updated', localEvents.value[index]);
-    emit('update:events', [...localEvents.value]);
-    return localEvents.value[index];
-  }
-  return null;
-}
-
-function addLocalEvent(event: CalendarEvent) {
-  localEvents.value.push(event);
-  emit('event-added', event);
-  emit('update:events', [...localEvents.value]);
-  return event;
-}
-
 function deleteLocalEvent(id: string | number) {
   const index = localEvents.value.findIndex(e => e.id === id);
   if (index !== -1) {
@@ -690,6 +742,9 @@ function getCurrentTimePosition(): number {
 // Reference for the week body container
 const weekBodyRef = ref<HTMLElement | null>(null);
 
+// Reference for the day body container
+const dayBodyRef = ref<HTMLElement | null>(null);
+
 // Scroll to default hour
 function scrollToHour(hour: number) {
   if (weekBodyRef.value) {
@@ -706,12 +761,19 @@ watch(view, (newView) => {
     nextTick(() => {
       scrollToHour(props.defaultStartHour);
     });
+  } else if (newView === 'day') {
+    // Use nextTick to ensure the DOM is updated
+    nextTick(() => {
+      scrollToHour(props.defaultStartHour);
+    });
   }
 });
 
 // Apply initial scroll position when mounted
 onMounted(() => {
   if (view.value === 'week') {
+    scrollToHour(props.defaultStartHour);
+  } else if (view.value === 'day') {
     scrollToHour(props.defaultStartHour);
   }
 });
@@ -1198,5 +1260,249 @@ onMounted(() => {
 
 .hour-column:last-child {
   border-right: none;
+}
+
+/* Day View Styles */
+.day-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: calc(100vh - 120px);
+}
+
+.day-header {
+  display: flex;
+  border-bottom: 1px solid #dadce0;
+  background: white;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 3;
+  height: 60px;
+  align-items: center;
+  margin-bottom: 0;
+  padding: 0;
+}
+
+.day-time-column {
+  width: 50px;
+  flex-shrink: 0;
+  border-right: 1px solid #dadce0;
+  background: white;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.day-column-wrapper {
+  display: flex;
+  flex: 1;
+  background: white;
+  height: 100%;
+  justify-content: center;
+}
+
+.day-column-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: transparent;
+  padding: 0;
+  gap: 2px;
+}
+
+.day-column-header .day-weekday {
+  font-size: 16px;
+  color: #5f6368;
+  font-weight: 500;
+}
+
+.day-column-header .day-number {
+  font-size: 24px;
+  color: #333;
+  font-weight: 400;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: transparent;
+  transition: background 0.2s, color 0.2s;
+}
+
+.day-column-header .day-number.today {
+  background-color: #1a73e8;
+  color: white;
+  font-weight: 500;
+}
+
+.day-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  display: flex;
+  scroll-behavior: smooth;
+  margin-top: 0;
+  background: #fff;
+}
+
+/* Hide scrollbar but keep functionality */
+.day-body::-webkit-scrollbar {
+  width: 0;
+  background: transparent;
+}
+
+.day-body {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.day-time-slots {
+  display: flex;
+  min-height: 1440px; /* 24 hours * 60px */
+  width: 100%;
+  position: relative;
+  background: white;
+  margin-top: 0;
+}
+
+.day-time-label {
+  width: 50px;
+  flex-shrink: 0;
+  border-right: 1px solid #dadce0;
+  background: white;
+  z-index: 2;
+  padding: 0;
+  text-align: right;
+  position: sticky;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.day-time-label > div {
+  height: 60px;
+  padding-right: 8px;
+  text-align: right;
+  font-size: 10px;
+  color: #70757a;
+  position: relative;
+  top: 0;
+  border-top: 1px solid #dadce0;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.day-hour-slots {
+  flex: 1;
+  display: flex;
+  position: relative;
+  min-height: 1440px;
+  background: #fff;
+}
+
+.day-hour-column {
+  flex: 1;
+  position: relative;
+}
+
+.day-hour-slot {
+  height: 60px;
+  border-bottom: 1px solid #dadce0;
+  position: relative;
+  min-height: 60px;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.day-hour-slot:last-child {
+  border-bottom: none;
+}
+
+.day-event {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  color: #333;
+  overflow: hidden;
+  z-index: 2;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  min-height: 45px;
+}
+
+.day-event:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  z-index: 4;
+}
+
+.day-event .event-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.day-event .event-title {
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #333;
+  margin-bottom: 2px;
+}
+
+.day-event .event-time {
+  font-size: 12px;
+  line-height: 16px;
+  color: #5f6368;
+  opacity: 0.9;
+}
+
+.day-event .event-description {
+  font-size: 12px;
+  line-height: 16px;
+  color: #5f6368;
+  margin-top: 4px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.day-current-time-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #ea4335;
+  z-index: 3;
+  transform: translateY(-1px);
+}
+
+.day-current-time-indicator::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  background-color: #ea4335;
+  border-radius: 50%;
 }
 </style>
