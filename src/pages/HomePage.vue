@@ -1,5 +1,14 @@
 <template>
   <div class="home">
+    <nav class="navbar">
+      <div class="nav-container">
+        <h2 class="nav-title">Calendar App</h2>
+        <div class="nav-links">
+          <router-link to="/" class="nav-link">Home</router-link>
+          <router-link to="/data-grid" class="nav-link">Data Grid</router-link>
+        </div>
+      </div>
+    </nav>
     <h1>Welcome to Calendar App</h1>
     <MyCalendar :events="events" :default-start-hour="8" />
   </div>
@@ -36,5 +45,57 @@ const events = [
 <style scoped>
 .home {
   padding: 20px;
+}
+
+.navbar {
+  background-color: #4d87c7;
+  color: white;
+  padding: 0.5rem 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 6px;
+}
+
+.nav-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.nav-title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.nav-links {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.nav-link {
+  color: white;
+  text-decoration: none;
+  padding: 0.5rem 0;
+  position: relative;
+}
+
+.nav-link:after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 2px;
+  bottom: 0;
+  left: 0;
+  background-color: white;
+  transition: width 0.3s;
+}
+
+.nav-link:hover:after {
+  width: 100%;
+}
+
+.router-link-active:after {
+  width: 100%;
 }
 </style>

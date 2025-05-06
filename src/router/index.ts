@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
   { path: '/', component: () => import('../pages/HomePage.vue'), name: 'Home' },
+  { path: '/data-grid', component: () => import('../examples/DataGridExample.vue'), name: 'DataGrid' }
 ]
 
 const router = createRouter({
