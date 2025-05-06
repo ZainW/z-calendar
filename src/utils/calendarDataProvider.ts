@@ -1,4 +1,4 @@
-import { ref, computed, reactive } from 'vue';
+import { computed, reactive } from 'vue';
 
 // Types
 export interface CalendarEvent {

@@ -715,6 +715,13 @@ onMounted(() => {
     scrollToHour(props.defaultStartHour);
   }
 });
+
+// Add isCompactEvent function to determine if an event should use compact layout
+function isCompactEvent(event: CalendarEvent): boolean {
+  const duration = event.end.getTime() - event.start.getTime();
+  // If event is less than 45 minutes, use compact layout
+  return duration <= 45 * 60 * 1000;
+}
 </script>
 
 <style>
@@ -1198,5 +1205,267 @@ onMounted(() => {
 
 .hour-column:last-child {
   border-right: none;
+}
+
+/* Day View Styles */
+.day-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: calc(100vh - 120px);
+}
+
+.day-header {
+  display: flex;
+  border-bottom: 1px solid #dadce0;
+  background: white;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 3;
+  height: 60px;
+  align-items: center;
+  margin-bottom: 0;
+  padding: 0;
+}
+
+.day-time-column {
+  width: 50px;
+  flex-shrink: 0;
+  border-right: 1px solid #dadce0;
+  background: white;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.day-column-wrapper {
+  display: flex;
+  flex: 1;
+  background: white;
+  height: 100%;
+  justify-content: center;
+}
+
+.day-column-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: transparent;
+  padding: 0;
+  gap: 2px;
+}
+
+.day-column-header .day-weekday {
+  font-size: 16px;
+  color: #5f6368;
+  font-weight: 500;
+}
+
+.day-column-header .day-number {
+  font-size: 24px;
+  color: #333;
+  font-weight: 400;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: transparent;
+  transition: background 0.2s, color 0.2s;
+}
+
+.day-column-header .day-number.today {
+  background-color: #1a73e8;
+  color: white;
+  font-weight: 500;
+}
+
+.day-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  display: flex;
+  scroll-behavior: smooth;
+  margin-top: 0;
+  background: #fff;
+}
+
+/* Hide scrollbar but keep functionality */
+.day-body::-webkit-scrollbar {
+  width: 0;
+  background: transparent;
+}
+
+.day-body {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.day-time-slots {
+  display: flex;
+  min-height: 1440px; /* 24 hours * 60px */
+  width: 100%;
+  position: relative;
+  background: white;
+  margin-top: 0;
+}
+
+.day-time-label {
+  width: 50px;
+  flex-shrink: 0;
+  border-right: 1px solid #dadce0;
+  background: white;
+  z-index: 2;
+  padding: 0;
+  text-align: right;
+  position: sticky;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.day-time-label > div {
+  height: 60px;
+  padding-right: 8px;
+  text-align: right;
+  font-size: 10px;
+  color: #70757a;
+  position: relative;
+  top: 0;
+  border-top: 1px solid #dadce0;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.day-hour-slots {
+  flex: 1;
+  display: flex;
+  position: relative;
+  min-height: 1440px;
+  background: #fff;
+}
+
+.day-hour-column {
+  flex: 1;
+  position: relative;
+}
+
+.day-hour-slot {
+  height: 60px;
+  border-bottom: 1px solid #dadce0;
+  position: relative;
+  min-height: 60px;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.day-hour-slot:last-child {
+  border-bottom: none;
+}
+
+.day-event {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  color: #333;
+  overflow: hidden;
+  z-index: 2;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  min-height: 45px;
+}
+
+.day-event:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  z-index: 4;
+}
+
+.day-event .event-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.day-event .event-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.day-event .event-content.compact-event .event-header {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.day-event .event-title {
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #333;
+}
+
+.day-event .event-time {
+  font-size: 12px;
+  line-height: 16px;
+  color: #5f6368;
+  opacity: 0.9;
+}
+
+.day-event .event-content.compact-event .event-time {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.day-event .event-description {
+  font-size: 12px;
+  line-height: 16px;
+  color: #5f6368;
+  margin-top: 4px;
+  overflow: hidden;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.day-current-time-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #ea4335;
+  z-index: 3;
+  transform: translateY(-1px);
+}
+
+.day-current-time-indicator::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  background-color: #ea4335;
+  border-radius: 50%;
 }
 </style>
