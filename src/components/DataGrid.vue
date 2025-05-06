@@ -219,7 +219,8 @@ const pageSizeOptions = [5, 10, 20, 30, 40, 50]
           Page {{ instance.getState().pagination.pageIndex + 1 }} of {{ instance.getPageCount() }}
         </span>
         <select
-          v-model="instance.getState().pagination.pageSize"
+          :value="instance.getState().pagination.pageSize"
+          @change="(e: Event) => instance.setPageSize(Number((e.target as HTMLSelectElement).value))"
           class="px-2 py-1 border border-gray-300 rounded-md text-sm"
         >
           <option v-for="pageSize in pageSizeOptions" :key="pageSize" :value="pageSize">
