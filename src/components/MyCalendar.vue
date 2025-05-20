@@ -169,11 +169,11 @@
                   }"
                   @click="openEventCard(event, $event.currentTarget as HTMLElement)"
                 >
-                  <div class="event-content">
+                  <div class="event-content day-event-content-row">
                     <div class="event-title">{{ event.title }}</div>
                     <div class="event-time">{{ formatEventTime(event) }}</div>
-                    <div class="event-description" v-if="event.description">{{ event.description }}</div>
                   </div>
+                  <div class="event-description" v-if="event.description">{{ event.description }}</div>
                 </div>
               </template>
             </div>
@@ -1505,5 +1505,13 @@ onMounted(() => {
   height: 10px;
   background-color: #ea4335;
   border-radius: 50%;
+}
+
+.day-event .day-event-content-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  height: auto;
 }
 </style>
