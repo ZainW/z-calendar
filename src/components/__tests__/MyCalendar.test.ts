@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount, VueWrapper } from '@vue/test-utils'
 import MyCalendar from '../MyCalendar.vue'
 import EventCard from '../EventCard.vue'
@@ -14,16 +14,16 @@ interface CalendarEvent {
   email?: string
 }
 
-interface CalendarComponent {
-  currentMonth: number
-  currentYear: number
-  view: 'month' | 'week'
-  events: CalendarEvent[]
-}
+// interface CalendarComponent {
+//   currentMonth: number
+//   currentYear: number
+//   view: 'month' | 'week'
+//   events: CalendarEvent[]
+// }
 
-interface EventCardComponent {
-  showRescheduleModal: boolean
-}
+// interface EventCardComponent {
+//   showRescheduleModal: boolean
+// }
 
 describe('MyCalendar', () => {
   let wrapper: VueWrapper<InstanceType<typeof MyCalendar>>

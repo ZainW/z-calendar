@@ -2,6 +2,14 @@
  * Utilities for documentation pages
  */
 
+declare global {
+  interface Window {
+    Prism?: {
+      highlightElement: (element: Element) => void;
+    };
+  }
+}
+
 /**
  * Adds copy buttons to all code blocks
  */
@@ -160,7 +168,7 @@ export function applySyntaxHighlighting() {
  */
 function highlightCodeBlocks() {
   // Only proceed if Prism is available
-  if (typeof (window as any).Prism === 'undefined') {
+  if (typeof window.Prism === 'undefined') {
     console.warn('Prism.js is not loaded, syntax highlighting is not available');
     return;
   }
@@ -184,7 +192,7 @@ function highlightCodeBlocks() {
       // Apply highlighting if not already highlighted
       if (!codeBlock.classList.contains('prism-highlighted')) {
         try {
-          (window as any).Prism.highlightElement(codeBlock);
+          window.Prism?.highlightElement(codeBlock);
           codeBlock.classList.add('prism-highlighted');
         } catch (error) {
           console.error('Error applying syntax highlighting:', error);
