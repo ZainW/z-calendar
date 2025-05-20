@@ -100,7 +100,13 @@
           </div>
           <div class="hour-slots">
             <div v-for="day in currentWeekDays" :key="day.date.toISOString()" class="hour-column">
-              <div v-for="hour in 24" :key="hour" class="hour-slot"></div>
+              <div v-for="hour in 24" :key="hour"
+                class="hour-slot"
+                :class="{ 'drag-over': isDraggingOver(day.date, hour-1) }"
+                @dragover.prevent="onDragOver($event, day.date, hour-1)"
+                @dragleave.prevent="onDragLeave()"
+                @drop.prevent="onTimeSlotDrop($event, day.date, hour-1)"
+              ></div>
               <div
                 v-if="isToday(day.date)"
                 class="current-time-indicator"
@@ -116,6 +122,9 @@
                     borderLeft: `3px solid ${event.color}`,
                     ...calculateEventPosition(event, eventsForDay(day.date))
                   }"
+                  draggable="true"
+                  @dragstart="onEventDragStart($event, event)"
+                  @dragend="onDragEnd()"
                   @click="openEventCard(event, $event.currentTarget as HTMLElement)"
                 >
                   <div class="event-content">
@@ -152,7 +161,13 @@
           </div>
           <div class="day-hour-slots">
             <div class="day-hour-column">
-              <div v-for="hour in 24" :key="hour" class="day-hour-slot"></div>
+              <div v-for="hour in 24" :key="hour"
+                class="day-hour-slot"
+                :class="{ 'drag-over': isDraggingOver(currentDate, hour-1) }"
+                @dragover.prevent="onDragOver($event, currentDate, hour-1)"
+                @dragleave.prevent="onDragLeave()"
+                @drop.prevent="onTimeSlotDrop($event, currentDate, hour-1)"
+              ></div>
               <div
                 v-if="isToday(currentDate)"
                 class="current-time-indicator day-current-time-indicator"
@@ -167,6 +182,9 @@
                     backgroundColor: getEventBackground(event.color),
                     borderLeft: `3px solid ${event.color}`
                   }"
+                  draggable="true"
+                  @dragstart="onEventDragStart($event, event)"
+                  @dragend="onDragEnd()"
                   @click="openEventCard(event, $event.currentTarget as HTMLElement)"
                 >
                   <div class="event-content day-event-content-row">
@@ -649,9 +667,16 @@ function onEventDragStart(event: DragEvent, calendarEvent: CalendarEvent) {
   draggingEvent.value = calendarEvent;
 }
 
-function onDragOver(event: DragEvent, date: Date) {
+function onDragOver(event: DragEvent, date: Date, hour?: number) {
   event.preventDefault(); // Necessary to allow drop
-  dragOverDate.value = date;
+  // For week/day views, include hour in dragOverDate
+  if (typeof hour === 'number') {
+    const dragDate = new Date(date);
+    dragDate.setHours(hour, 0, 0, 0);
+    dragOverDate.value = dragDate;
+  } else {
+    dragOverDate.value = date;
+  }
 }
 
 function onDragLeave() {
@@ -663,18 +688,101 @@ function onDragEnd() {
   dragOverDate.value = null;
 }
 
-function isDraggingOver(date: Date): boolean {
-  return !!dragOverDate.value &&
-         dragOverDate.value.toDateString() === date.toDateString();
+function isDraggingOver(date: Date, hour?: number): boolean {
+  if (!dragOverDate.value) return false;
+  if (typeof hour === 'number') {
+    return (
+      dragOverDate.value.getDate() === date.getDate() &&
+      dragOverDate.value.getMonth() === date.getMonth() &&
+      dragOverDate.value.getFullYear() === date.getFullYear() &&
+      dragOverDate.value.getHours() === hour
+    );
+  }
+  return dragOverDate.value.toDateString() === date.toDateString();
 }
 
 function onDayDrop(event: DragEvent, date: Date) {
   event.preventDefault();
   if (draggingEvent.value) {
     const movedEvent = moveEventToDate(draggingEvent.value, date);
-    openEventCard(movedEvent, null);
+    // Update localEvents so the DOM updates
+    const idx = localEvents.value.findIndex(e => e.id === movedEvent.id);
+    if (idx !== -1) {
+      localEvents.value[idx] = movedEvent;
+    }
+    nextTick(() => {
+      // Try to find the event DOM node in the month view
+      // Find all event nodes for this day
+      const dayEvents = eventsForDay(date);
+      // Find the index of the moved event for this day (for month view, idx < 3)
+      const eventIdx = dayEvents.findIndex(e => e.id === movedEvent.id);
+      if (eventIdx !== -1) {
+        // Only the first 3 events are rendered as .event
+        if (eventIdx < 3) {
+          // Find the day cell
+          const dayCells = document.querySelectorAll('.day-cell');
+          for (const cell of dayCells) {
+            const dayNumberEl = cell.querySelector('.day-number');
+            if (dayNumberEl && dayNumberEl.textContent == String(date.getDate())) {
+              const eventEls = cell.querySelectorAll('.event');
+              if (eventEls[eventIdx]) {
+                openEventCard(movedEvent, eventEls[eventIdx] as HTMLElement);
+                onDragEnd();
+                return;
+              }
+            }
+          }
+        }
+      }
+      // fallback
+      openEventCard(movedEvent, null);
+      onDragEnd();
+    });
+  } else {
+    onDragEnd();
   }
-  onDragEnd();
+}
+
+function onTimeSlotDrop(event: DragEvent, date: Date, hour: number) {
+  event.preventDefault();
+  if (draggingEvent.value) {
+    // Move event to the new date and hour
+    const newStart = new Date(date);
+    newStart.setHours(hour, 0, 0, 0);
+    const duration = draggingEvent.value.end.getTime() - draggingEvent.value.start.getTime();
+    const newEnd = new Date(newStart.getTime() + duration);
+    const movedEvent = { ...draggingEvent.value, start: newStart, end: newEnd };
+    // Update localEvents so the DOM updates
+    const idx = localEvents.value.findIndex(e => e.id === movedEvent.id);
+    if (idx !== -1) {
+      localEvents.value[idx] = movedEvent;
+    }
+    nextTick(() => {
+      // Try to find the event DOM node in week/day view
+      let selector = '';
+      if (view.value === 'week') selector = '.week-event';
+      else if (view.value === 'day') selector = '.day-event';
+      const eventEls = document.querySelectorAll(selector);
+      for (const el of eventEls) {
+        // Try to match by title and time (since id is not in DOM)
+        const titleEl = el.querySelector('.event-title');
+        const timeEl = el.querySelector('.event-time');
+        if (
+          titleEl && titleEl.textContent === movedEvent.title &&
+          timeEl && timeEl.textContent === formatEventTime(movedEvent)
+        ) {
+          openEventCard(movedEvent, el as HTMLElement);
+          onDragEnd();
+          return;
+        }
+      }
+      // fallback
+      openEventCard(movedEvent, null);
+      onDragEnd();
+    });
+  } else {
+    onDragEnd();
+  }
 }
 
 // --- Event Management Methods ---
@@ -1513,5 +1621,11 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   height: auto;
+}
+
+/* Add drag-over highlight for week and day slots */
+.hour-slot.drag-over,
+.day-hour-slot.drag-over {
+  background: #e3f0fd !important;
 }
 </style>
