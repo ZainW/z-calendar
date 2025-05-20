@@ -67,17 +67,15 @@ describe('MyCalendar', () => {
     expect(wrapper.find('.month-view').exists()).toBe(true)
     expect(wrapper.find('.week-view').exists()).toBe(false)
 
-    // Find the Week button by text
+    // Switch to week view
     const weekBtn = wrapper.findAll('button').find(btn => btn.text() === 'Week')
-    expect(weekBtn).toBeTruthy()
-    await weekBtn!.trigger('click')
+    await weekBtn?.trigger('click')
     expect(wrapper.find('.week-view').exists()).toBe(true)
     expect(wrapper.find('.month-view').exists()).toBe(false)
 
-    // Find the Month button by text
+    // Switch back to month view
     const monthBtn = wrapper.findAll('button').find(btn => btn.text() === 'Month')
-    expect(monthBtn).toBeTruthy()
-    await monthBtn!.trigger('click')
+    await monthBtn?.trigger('click')
     expect(wrapper.find('.month-view').exists()).toBe(true)
     expect(wrapper.find('.week-view').exists()).toBe(false)
   })
@@ -93,7 +91,8 @@ describe('MyCalendar', () => {
     expect(nextBtn).toBeTruthy()
 
     // Go to previous month
-    await prevBtn!.trigger('click')
+    const prevBtn2 = wrapper.findAll('button').find(btn => btn.text() === '<')
+    await prevBtn2?.trigger('click')
     const prevMonth = initialMonth === 0 ? 11 : initialMonth - 1
     const prevYear = initialMonth === 0 ? initialYear - 1 : initialYear
     expect(wrapper.find('.calendar-title h2').text()).toContain(
@@ -101,30 +100,20 @@ describe('MyCalendar', () => {
     )
 
     // Go to next month
-    await nextBtn!.trigger('click')
+    const nextBtn2 = wrapper.findAll('button').find(btn => btn.text() === '>')
+    await nextBtn2?.trigger('click')
     expect(wrapper.find('.calendar-title h2').text()).toContain(
       new Date(initialYear, initialMonth).toLocaleString('default', { month: 'long' })
     )
   })
 
   it('displays events correctly', async () => {
-    // Ensure the calendar is set to the month/year of the mock event
-    const eventDate = mockEvents[0].start
-    const calendarDate = wrapper.vm.$.exposed?.currentDate?.value || new Date()
-    if (
-      calendarDate.getFullYear() !== eventDate.getFullYear() ||
-      calendarDate.getMonth() !== eventDate.getMonth()
-    ) {
-      // Set calendar to the event's month/year
-      if (wrapper.vm.$.exposed && wrapper.vm.$.exposed.currentDate) {
-        wrapper.vm.$.exposed.currentDate.value = new Date(eventDate)
-      }
-      await wrapper.vm.$nextTick()
-    }
-    // Find a day cell with events
-    const dayWithEvent = wrapper.findAll('.day-cell').find(cell => cell.classes().includes('has-events'))
-    expect(dayWithEvent).toBeTruthy()
-    expect(dayWithEvent!.find('.event').text()).toContain('Test Event')
+    // Set calendar to May 2024 to match mockEvents
+    wrapper.vm.currentDate = new Date(2024, 4, 1)
+    await wrapper.vm.$nextTick()
+    const dayWithEvent = wrapper.find('.day-cell.has-events')
+    expect(dayWithEvent.exists()).toBe(true)
+    expect(dayWithEvent.find('.event').text()).toContain('Test Event')
   })
 
   it('handles day selection', async () => {
@@ -142,6 +131,8 @@ describe('MyCalendar', () => {
     expect(todayBtn).toBeTruthy()
     await todayBtn!.trigger('click')
     const today = new Date()
+    const todayBtn2 = wrapper.findAll('button').find(btn => btn.text() === 'Today')
+    await todayBtn2?.trigger('click')
     expect(wrapper.find('.calendar-title h2').text()).toContain(
       today.toLocaleString('default', { month: 'long' })
     )
@@ -176,6 +167,7 @@ describe('EventCard', () => {
   })
 
   it('renders event details correctly', () => {
+    expect(wrapper.find('.event-title').exists()).toBe(true)
     expect(wrapper.find('.event-title').text()).toBe('Test Event')
     expect(wrapper.find('.time').text()).toMatch(/10(:00)?\s?AM/i)
     expect(wrapper.find('.email').text()).toBe('test@example.com')
@@ -204,7 +196,7 @@ describe('MyCalendar – additional scenarios', () => {
     expect(emptyWrapper.find('.no-events').text()).toBe('No events');
   });
 
-  it('renders multi-day events spanning month boundaries correctly', () => {
+  it('renders multi-day events spanning month boundaries correctly', async () => {
     const spanEvent = {
       id: '2',
       title: 'Span Event',
@@ -213,14 +205,20 @@ describe('MyCalendar – additional scenarios', () => {
       color: '#00FF00'
     };
     const wrapper2 = mount(MyCalendar, { props: { events: [spanEvent] } });
+    // Set calendar to January 2024
+    wrapper2.vm.currentDate = new Date(2024, 0, 31)
+    await wrapper2.vm.$nextTick()
     const spannedDays = wrapper2.findAll('.day-cell.has-events');
     expect(spannedDays.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('handles overlapping events within the same day', () => {
+  it('handles overlapping events within the same day', async () => {
     const e1 = { id: '3', title: 'First', start: new Date(2024, 4, 1, 9), end: new Date(2024, 4, 1, 12), color: '#0000FF' };
     const e2 = { id: '4', title: 'Second', start: new Date(2024, 4, 1, 11), end: new Date(2024, 4, 1, 14), color: '#FF00FF' };
     const overlapWrapper = mount(MyCalendar, { props: { events: [e1, e2] } });
+    // Set calendar to May 2024
+    overlapWrapper.vm.currentDate = new Date(2024, 4, 1)
+    await overlapWrapper.vm.$nextTick()
     const overlappingDay = overlapWrapper.find('.day-cell.has-events');
     expect(overlappingDay.findAll('.event').length).toBe(2);
   });
@@ -229,14 +227,19 @@ describe('MyCalendar – additional scenarios', () => {
     // Force currentMonth/currentYear via component instance override
     const decWrapper = mount(MyCalendar, {
       props: { events: [] },
-      data: () => ({ currentMonth: 11, currentYear: 2023 })
+      data: () => ({ currentMonth: 11, currentYear: 2023, currentDate: new Date(2023, 11, 1) })
     });
+    // Set calendar to December 2023
+    decWrapper.vm.currentDate = new Date(2023, 11, 1)
+    await decWrapper.vm.$nextTick()
     // Back to November 2023
-    await decWrapper.find('button:contains("<")').trigger('click');
+    const prevBtn = decWrapper.findAll('button').find(btn => btn.text() === '<')
+    await prevBtn?.trigger('click');
     expect(decWrapper.find('.calendar-title h2').text()).toMatch(/November\s2023/);
     // Forward twice into January 2024
-    await decWrapper.find('button:contains(">")').trigger('click');
-    await decWrapper.find('button:contains(">")').trigger('click');
+    const nextBtn = decWrapper.findAll('button').find(btn => btn.text() === '>')
+    await nextBtn?.trigger('click');
+    await nextBtn?.trigger('click');
     expect(decWrapper.find('.calendar-title h2').text()).toMatch(/January\s2024/);
   });
 });
@@ -263,7 +266,10 @@ describe('EventCard – extended behaviors', () => {
       }
     });
     await wrapper.find('.time-button').trigger('click');
-    await wrapper.find('.reschedule-confirm-button').trigger('click');
+    // Wait for modal to appear
+    await wrapper.vm.$nextTick();
+    const saveBtn = wrapper.findComponent({ name: 'RescheduleModal' }).find('.save-button')
+    await saveBtn.trigger('click');
     expect(onReschedule).toHaveBeenCalledOnce();
   });
 
@@ -280,7 +286,10 @@ describe('EventCard – extended behaviors', () => {
       }
     });
     await wrapper.find('.time-button').trigger('click');
-    await wrapper.find('.reschedule-cancel-button').trigger('click');
+    // Wait for modal to appear
+    await wrapper.vm.$nextTick();
+    const cancelBtn = wrapper.findComponent({ name: 'RescheduleModal' }).find('.cancel-button')
+    await cancelBtn.trigger('click');
     expect(onCancel).toHaveBeenCalledOnce();
   });
 

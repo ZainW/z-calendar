@@ -74,6 +74,7 @@
           </div>
         </div>
       </div>
+      <div v-if="!localEvents.length" class="no-events">No events</div>
     </div>
 
     <!-- Week View -->
@@ -270,7 +271,7 @@ const props = defineProps({
 });
 
 // Emits
-const emit = defineEmits(['update:events', 'fetch-start', 'fetch-success', 'fetch-error', 'event-updated', 'event-added', 'event-deleted']); // Added event emits
+const emit = defineEmits(['update:events', 'fetch-start', 'fetch-success', 'fetch-error', 'event-updated', 'event-added', 'event-deleted', 'day-selected']); // Added event emits
 
 // State
 const view = ref<'month' | 'week' | 'day'>('month');
@@ -567,6 +568,7 @@ function selectDay(date: Date): void {
   selectedDate.value = date;
   // Open card to create a new event for this day
   openEventCard(null, null);
+  emit('day-selected', date);
 }
 
 function isToday(date: Date): boolean {
@@ -578,11 +580,14 @@ function isToday(date: Date): boolean {
 
 function eventsForDay(date: Date): CalendarEvent[] {
   return localEvents.value.filter(event => {
-    const eventDate = new Date(event.start);
-    return eventDate.getDate() === date.getDate() &&
-           eventDate.getMonth() === date.getMonth() &&
-           eventDate.getFullYear() === date.getFullYear();
-  }).sort((a, b) => a.start.getTime() - b.start.getTime());
+    // Event spans this day if start <= date <= end
+    const start = new Date(event.start)
+    const end = new Date(event.end)
+    // Set time to 0:00:00 for comparison
+    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0)
+    const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)
+    return start <= dayEnd && end >= dayStart
+  }).sort((a, b) => a.start.getTime() - b.start.getTime())
 }
 
 function hasEvents(date: Date): boolean {
