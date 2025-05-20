@@ -195,3 +195,114 @@ describe('EventCard', () => {
     expect(wrapper.findComponent(RescheduleModal).exists()).toBe(true)
   })
 })
+
+describe('MyCalendar – additional scenarios', () => {
+  it('renders placeholder when no events are passed', () => {
+    const emptyWrapper = mount(MyCalendar, { props: { events: [] } });
+    // Assuming component shows a .no-events element when there are zero events
+    expect(emptyWrapper.find('.day-cell.has-events').exists()).toBe(false);
+    expect(emptyWrapper.find('.no-events').text()).toBe('No events');
+  });
+
+  it('renders multi-day events spanning month boundaries correctly', () => {
+    const spanEvent = {
+      id: '2',
+      title: 'Span Event',
+      start: new Date(2024, 0, 30, 9, 0),
+      end: new Date(2024, 1, 2, 17, 0),
+      color: '#00FF00'
+    };
+    const wrapper2 = mount(MyCalendar, { props: { events: [spanEvent] } });
+    const spannedDays = wrapper2.findAll('.day-cell.has-events');
+    expect(spannedDays.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('handles overlapping events within the same day', () => {
+    const e1 = { id: '3', title: 'First', start: new Date(2024, 4, 1, 9), end: new Date(2024, 4, 1, 12), color: '#0000FF' };
+    const e2 = { id: '4', title: 'Second', start: new Date(2024, 4, 1, 11), end: new Date(2024, 4, 1, 14), color: '#FF00FF' };
+    const overlapWrapper = mount(MyCalendar, { props: { events: [e1, e2] } });
+    const overlappingDay = overlapWrapper.find('.day-cell.has-events');
+    expect(overlappingDay.findAll('.event').length).toBe(2);
+  });
+
+  it('wraps year transition correctly when navigating December → January', async () => {
+    // Force currentMonth/currentYear via component instance override
+    const decWrapper = mount(MyCalendar, {
+      props: { events: [] },
+      data: () => ({ currentMonth: 11, currentYear: 2023 })
+    });
+    // Back to November 2023
+    await decWrapper.find('button:contains("<")').trigger('click');
+    expect(decWrapper.find('.calendar-title h2').text()).toMatch(/November\s2023/);
+    // Forward twice into January 2024
+    await decWrapper.find('button:contains(">")').trigger('click');
+    await decWrapper.find('button:contains(">")').trigger('click');
+    expect(decWrapper.find('.calendar-title h2').text()).toMatch(/January\s2024/);
+  });
+});
+
+describe('EventCard – extended behaviors', () => {
+  const baseEvent = {
+    id: '1',
+    title: 'Test Event',
+    start: new Date(2024, 4, 1, 10),
+    end: new Date(2024, 4, 1, 11),
+    color: '#FF0000'
+  };
+
+  it('invokes onReschedule callback when reschedule confirmed', async () => {
+    const onReschedule = vi.fn();
+    const wrapper = mount(EventCard, {
+      props: {
+        event: baseEvent,
+        isOpen: true,
+        referenceEl: document.createElement('div'),
+        onClose: () => {},
+        onReschedule,
+        onCancel: () => {}
+      }
+    });
+    await wrapper.find('.time-button').trigger('click');
+    await wrapper.find('.reschedule-confirm-button').trigger('click');
+    expect(onReschedule).toHaveBeenCalledOnce();
+  });
+
+  it('invokes onCancel callback when reschedule cancelled', async () => {
+    const onCancel = vi.fn();
+    const wrapper = mount(EventCard, {
+      props: {
+        event: baseEvent,
+        isOpen: true,
+        referenceEl: document.createElement('div'),
+        onClose: () => {},
+        onReschedule: () => {},
+        onCancel
+      }
+    });
+    await wrapper.find('.time-button').trigger('click');
+    await wrapper.find('.reschedule-cancel-button').trigger('click');
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it('renders gracefully when optional props (email/organizer) are missing', () => {
+    const minimalEvent = {
+      id: '5',
+      title: 'Minimal',
+      start: new Date(),
+      end: new Date(),
+      color: '#123456'
+    };
+    const wrapper = mount(EventCard, {
+      props: {
+        event: minimalEvent,
+        isOpen: false,
+        referenceEl: document.createElement('div'),
+        onClose: () => {},
+        onReschedule: () => {},
+        onCancel: () => {}
+      }
+    });
+    expect(wrapper.find('.email').exists()).toBe(false);
+    expect(wrapper.find('.organizer').exists()).toBe(false);
+  });
+});
