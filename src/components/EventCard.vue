@@ -40,7 +40,7 @@
 
       <div class="detail-section">
         <h3>By</h3>
-        <p>{{ event?.organizer }}</p>
+        <p class="organizer">{{ event?.organizer }}</p>
       </div>
 
       <div class="detail-section">
@@ -78,7 +78,7 @@
   <RescheduleModal
     :is-open="showRescheduleModal"
     :current-date="event?.start"
-    @close="showRescheduleModal = false"
+    @close="() => { showRescheduleModal = false; emit('cancel') }"
     @save="handleReschedule"
   />
 </template>
