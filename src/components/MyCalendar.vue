@@ -1,221 +1,259 @@
 <template>
-  <div class="calendar-container">
-    <div class="calendar-header">
-      <div class="calendar-title">
-        <h2>{{ currentMonthName }} {{ currentYear }}</h2>
-      </div>
-      <div class="calendar-nav">
-        <button class="icon-button" @click="previousPeriod">&lt;</button>
-        <button class="icon-button" @click="nextPeriod">&gt;</button>
-        <div class="view-toggle">
-          <button
-            :class="{ active: view === 'month' }"
-            @click="switchView('month')"
-          >Month</button>
-          <button
-            :class="{ active: view === 'week' }"
-            @click="switchView('week')"
-          >Week</button>
-          <button
-            :class="{ active: view === 'day' }"
-            @click="switchView('day')"
-          >Day</button>
+  <div class="calendar-app-layout">
+    <aside class="calendar-sidebar">
+      <!-- Mini calendar placeholder -->
+      <div class="mini-calendar-placeholder">
+        <div class="mini-calendar-header">
+          <span>June 2025</span>
         </div>
-
-        <button class="today-button" @click="goToToday">Today</button>
+        <div class="mini-calendar-grid">(Mini calendar here)</div>
       </div>
-    </div>
-
-    <!-- Month View -->
-    <div v-if="view === 'month'" class="month-view">
-      <div class="weekdays">
-        <div v-for="day in weekdays" :key="day" class="weekday">{{ day }}</div>
+      <!-- Search bar -->
+      <input
+        type="text"
+        class="sidebar-search"
+        placeholder="Search events"
+        aria-label="Search events"
+      />
+      <!-- Filters -->
+      <div class="sidebar-filters">
+        <label class="sidebar-filter">
+          <input type="checkbox" checked /> Scheduled
+        </label>
+        <label class="sidebar-filter">
+          <input type="checkbox" checked /> Sent
+        </label>
       </div>
-      <div class="days-grid">
-        <div
-          v-for="(day, index) in daysInMonth"
-          :key="index"
-          :class="[
-            'day-cell',
-            {
-              'current-month': day.currentMonth,
-              'today': isToday(day.date),
-              'has-events': hasEvents(day.date),
-              'other-month': !day.currentMonth,
-              'drag-over': isDraggingOver(day.date)
-            }
-          ]"
-          :data-date="day.date.toISOString().slice(0, 10)"
-          @click="selectDay(day.date)"
-          @dragover.prevent="onDragOver($event, day.date)"
-          @dragleave.prevent="onDragLeave()"
-          @drop.prevent="onDayDrop($event, day.date)"
-        >
-          <div class="day-number">{{ day.dayNumber }}</div>
-          <div class="events-container">
-            <template v-for="(event, idx) in eventsForDay(day.date)" :key="idx">
-              <div
-                v-if="idx < 3"
-                class="event"
-                :style="{
-                  backgroundColor: getEventBackground(event.color),
-                  borderLeft: `3px solid ${event.color}`
-                }"
-                draggable="true"
-                @dragstart="onEventDragStart($event, event)"
-                @dragend="onDragEnd()"
-                @click.stop="openEventCard(event, $event.currentTarget as HTMLElement)"
+    </aside>
+    <main class="calendar-main">
+      <header class="calendar-main-header">
+        <div class="calendar-header-left">
+          <h2 class="calendar-header-title">{{ currentMonthName }} {{ currentYear }}</h2>
+          <div class="calendar-header-nav">
+            <button class="icon-button" @click="previousPeriod" aria-label="Previous"><span>&lt;</span></button>
+            <button class="icon-button" @click="nextPeriod" aria-label="Next"><span>&gt;</span></button>
+            <button class="today-button" @click="goToToday">Today</button>
+          </div>
+        </div>
+        <div class="calendar-header-right">
+          <div class="custom-dropdown" ref="viewDropdownRef">
+            <button
+              class="custom-dropdown-btn"
+              :aria-expanded="viewDropdownOpen"
+              @click="viewDropdownOpen = !viewDropdownOpen"
+              @keydown="handleDropdownKeydown"
+              type="button"
+            >
+              {{ viewOptions.find(opt => opt.value === view)?.label }}
+              <span class="dropdown-arrow" :class="{ open: viewDropdownOpen }">▼</span>
+            </button>
+            <ul v-if="viewDropdownOpen" class="custom-dropdown-menu">
+              <li
+                v-for="opt in viewOptions"
+                :key="opt.value"
+                :class="{ selected: view === opt.value }"
+                @click="selectViewOption(opt.value as 'month' | 'week' | 'day')"
+                tabindex="0"
+                @keydown.enter="selectViewOption(opt.value as 'month' | 'week' | 'day')"
               >
-                {{ event.title }}
-              </div>
-            </template>
-            <div v-if="eventsForDay(day.date).length > 3" class="more-events">
-              +{{ eventsForDay(day.date).length - 3 }} more
-            </div>
+                {{ opt.label }}
+              </li>
+            </ul>
           </div>
         </div>
-      </div>
-      <div v-if="!localEvents.length" class="no-events">No events</div>
-    </div>
+      </header>
+      <div class="calendar-container">
+        <!-- Month View -->
+        <div v-if="view === 'month'" class="month-view">
+          <div class="weekdays">
+            <div v-for="day in weekdays" :key="day" class="weekday">{{ day }}</div>
+          </div>
+          <div class="days-grid">
+            <div
+              v-for="(day, index) in daysInMonth"
+              :key="index"
+              :class="[
+                'day-cell',
+                {
+                  'current-month': day.currentMonth,
+                  'today': isToday(day.date),
+                  'has-events': hasEvents(day.date),
+                  'other-month': !day.currentMonth,
+                  'drag-over': isDraggingOver(day.date)
+                }
+              ]"
+              :data-date="day.date.toISOString().slice(0, 10)"
+              @dragover.prevent="onDragOver($event, day.date)"
+              @dragleave.prevent="onDragLeave()"
+              @drop.prevent="onDayDrop($event, day.date)"
+            >
+              <div class="day-number">{{ day.dayNumber }}</div>
+              <div class="events-container">
+                <template v-for="(event, idx) in eventsForDay(day.date)" :key="idx">
+                  <div
+                    v-if="idx < 3"
+                    class="event"
+                    :style="{
+                      backgroundColor: getEventBackground(event.color),
+                      borderLeft: `3px solid ${event.color}`
+                    }"
+                    draggable="true"
+                    @dragstart="onEventDragStart($event, event)"
+                    @dragend="onDragEnd()"
+                    @click.stop="openEventCard(event, $event.currentTarget as HTMLElement)"
+                  >
+                    {{ event.title }}
+                  </div>
+                </template>
+                <div v-if="eventsForDay(day.date).length > 3" class="more-events">
+                  +{{ eventsForDay(day.date).length - 3 }} more
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-if="!localEvents.length" class="no-events">No events</div>
+        </div>
 
-    <!-- Week View -->
-    <div v-else-if="view === 'week'" class="week-view">
-      <div class="week-header">
-        <div class="time-column"></div>
-        <div class="day-columns">
-          <div v-for="day in currentWeekDays" :key="day.date.toISOString()" class="day-column">
-            <div class="day-column-header">
-              <div class="weekday">{{ day.weekday }}</div>
-              <div class="day-number" :class="{ 'today': isToday(day.date) }">
-                {{ day.dayNumber }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div ref="weekBodyRef" class="week-body">
-        <div class="time-slots">
-          <div class="time-label">
-            <div v-for="hour in 24" :key="hour-1">
-              {{ formatHour(hour - 1) }}
-            </div>
-          </div>
-          <div class="hour-slots">
-            <div v-for="day in currentWeekDays" :key="day.date.toISOString()" class="hour-column">
-              <div v-for="hour in 24" :key="hour"
-                class="hour-slot"
-                :class="{ 'drag-over': isDraggingOver(day.date, hour-1) }"
-                @dragover.prevent="onDragOver($event, day.date, hour-1)"
-                @dragleave.prevent="onDragLeave()"
-                @drop.prevent="onTimeSlotDrop($event, day.date, hour-1)"
-              ></div>
-              <div
-                v-if="isToday(day.date)"
-                class="current-time-indicator"
-                :style="{ top: `${getCurrentTimePosition()}px` }"
-              ></div>
-              <template v-for="event in eventsForDay(day.date)" :key="event.id">
-                <div
-                  class="week-event"
-                  :style="{
-                    top: `${calculateEventTop(event)}px`,
-                    height: `${calculateEventHeight(event)}px`,
-                    backgroundColor: getEventBackground(event.color),
-                    borderLeft: `3px solid ${event.color}`,
-                    ...calculateEventPosition(event, eventsForDay(day.date))
-                  }"
-                  draggable="true"
-                  @dragstart="onEventDragStart($event, event)"
-                  @dragend="onDragEnd()"
-                  @click="openEventCard(event, $event.currentTarget as HTMLElement)"
-                >
-                  <div class="event-content">
-                    <div class="event-title">{{ event.title }}</div>
-                    <div class="event-time">{{ formatEventTime(event) }}</div>
+        <!-- Week View -->
+        <div v-else-if="view === 'week'" class="week-view">
+          <div class="week-header">
+            <div class="time-column"></div>
+            <div class="day-columns">
+              <div v-for="day in currentWeekDays" :key="day.date.toISOString()" class="day-column">
+                <div class="day-column-header">
+                  <div class="weekday">{{ day.weekday }}</div>
+                  <div class="day-number" :class="{ 'today': isToday(day.date) }">
+                    {{ day.dayNumber }}
                   </div>
                 </div>
-              </template>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Day View -->
-    <div v-else-if="view === 'day'" class="day-view">
-      <div class="day-header">
-        <div class="time-column day-time-column"></div>
-        <div class="day-column-wrapper">
-          <div class="day-column-header">
-            <div class="day-weekday">{{ currentDayName }}</div>
-            <div class="day-number" :class="{ 'today': isToday(currentDate) }">
-              {{ currentDate.getDate() }}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div ref="dayBodyRef" class="day-body">
-        <div class="day-time-slots">
-          <div class="time-label day-time-label">
-            <div v-for="hour in 24" :key="hour-1">
-              {{ formatHour(hour - 1) }}
-            </div>
-          </div>
-          <div class="day-hour-slots">
-            <div class="day-hour-column">
-              <div v-for="hour in 24" :key="hour"
-                class="day-hour-slot"
-                :class="{ 'drag-over': isDraggingOver(currentDate, hour-1) }"
-                @dragover.prevent="onDragOver($event, currentDate, hour-1)"
-                @dragleave.prevent="onDragLeave()"
-                @drop.prevent="onTimeSlotDrop($event, currentDate, hour-1)"
-              ></div>
-              <div
-                v-if="isToday(currentDate)"
-                class="current-time-indicator day-current-time-indicator"
-                :style="{ top: `${getCurrentTimePosition()}px` }"
-              ></div>
-              <template v-for="event in eventsForDay(currentDate)" :key="event.id">
-                <div
-                  class="day-event"
-                  :style="{
-                    top: `${calculateEventTop(event)}px`,
-                    height: `${calculateEventHeight(event)}px`,
-                    backgroundColor: getEventBackground(event.color),
-                    borderLeft: `3px solid ${event.color}`
-                  }"
-                  draggable="true"
-                  @dragstart="onEventDragStart($event, event)"
-                  @dragend="onDragEnd()"
-                  @click="openEventCard(event, $event.currentTarget as HTMLElement)"
-                >
-                  <div class="event-content day-event-content-row">
-                    <div class="event-title">{{ event.title }}</div>
-                    <div class="event-time">{{ formatEventTime(event) }}</div>
-                  </div>
-                  <div class="event-description" v-if="event.description">{{ event.description }}</div>
+          <div ref="weekBodyRef" class="week-body">
+            <div class="time-slots">
+              <div class="time-label">
+                <div v-for="hour in 24" :key="hour-1">
+                  {{ formatHour(hour - 1) }}
                 </div>
-              </template>
+              </div>
+              <div class="hour-slots">
+                <div v-for="day in currentWeekDays" :key="day.date.toISOString()" class="hour-column">
+                  <div v-for="hour in 24" :key="hour"
+                    class="hour-slot"
+                    :class="{ 'drag-over': isDraggingOver(day.date, hour-1) }"
+                    @dragover.prevent="onDragOver($event, day.date, hour-1)"
+                    @dragleave.prevent="onDragLeave()"
+                    @drop.prevent="onTimeSlotDrop($event, day.date, hour-1)"
+                  ></div>
+                  <div
+                    v-if="isToday(day.date)"
+                    class="current-time-indicator"
+                    :style="{ top: `${getCurrentTimePosition()}px` }"
+                  ></div>
+                  <template v-for="event in eventsForDay(day.date)" :key="event.id">
+                    <div
+                      class="week-event"
+                      :style="{
+                        top: `${calculateEventTop(event)}px`,
+                        height: `${calculateEventHeight(event)}px`,
+                        backgroundColor: getEventBackground(event.color),
+                        borderLeft: `3px solid ${event.color}`,
+                        ...calculateEventPosition(event, eventsForDay(day.date))
+                      }"
+                      draggable="true"
+                      @dragstart="onEventDragStart($event, event)"
+                      @dragend="onDragEnd()"
+                      @click="openEventCard(event, $event.currentTarget as HTMLElement)"
+                    >
+                      <div class="event-content">
+                        <div class="event-title">{{ event.title }}</div>
+                        <div class="event-time">{{ formatEventTime(event) }}</div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Event Card -->
-    <EventCard
-      :event="selectedEvent"
-      :is-open="isEventCardOpen"
-      :reference-el="selectedEventEl"
-      @close="closeEventCard"
-      @reschedule="rescheduleEvent"
-      @cancel="cancelEvent"
-    />
+        <!-- Day View -->
+        <div v-else-if="view === 'day'" class="day-view">
+          <div class="day-header">
+            <div class="time-column day-time-column"></div>
+            <div class="day-column-wrapper">
+              <div class="day-column-header">
+                <div class="day-weekday">{{ currentDayName }}</div>
+                <div class="day-number" :class="{ 'today': isToday(currentDate) }">
+                  {{ currentDate.getDate() }}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div ref="dayBodyRef" class="day-body">
+            <div class="day-time-slots">
+              <div class="time-label day-time-label">
+                <div v-for="hour in 24" :key="hour-1">
+                  {{ formatHour(hour - 1) }}
+                </div>
+              </div>
+              <div class="day-hour-slots">
+                <div class="day-hour-column">
+                  <div v-for="hour in 24" :key="hour"
+                    class="day-hour-slot"
+                    :class="{ 'drag-over': isDraggingOver(currentDate, hour-1) }"
+                    @dragover.prevent="onDragOver($event, currentDate, hour-1)"
+                    @dragleave.prevent="onDragLeave()"
+                    @drop.prevent="onTimeSlotDrop($event, currentDate, hour-1)"
+                  ></div>
+                  <div
+                    v-if="isToday(currentDate)"
+                    class="current-time-indicator day-current-time-indicator"
+                    :style="{ top: `${getCurrentTimePosition()}px` }"
+                  ></div>
+                  <template v-for="event in eventsForDay(currentDate)" :key="event.id">
+                    <div
+                      class="day-event"
+                      :style="{
+                        top: `${calculateEventTop(event)}px`,
+                        height: `${calculateEventHeight(event)}px`,
+                        backgroundColor: getEventBackground(event.color),
+                        borderLeft: `3px solid ${event.color}`
+                      }"
+                      draggable="true"
+                      @dragstart="onEventDragStart($event, event)"
+                      @dragend="onDragEnd()"
+                      @click="openEventCard(event, $event.currentTarget as HTMLElement)"
+                    >
+                      <div class="event-content day-event-content-row">
+                        <div class="event-title">{{ event.title }}</div>
+                        <div class="event-time">{{ formatEventTime(event) }}</div>
+                      </div>
+                      <div class="event-description" v-if="event.description">{{ event.description }}</div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Event Card -->
+        <EventCard
+          :event="selectedEvent"
+          :is-open="isEventCardOpen"
+          :reference-el="selectedEventEl"
+          @close="closeEventCard"
+          @reschedule="rescheduleEvent"
+          @cancel="cancelEvent"
+        />
+      </div>
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, inject, provide, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, inject, provide, nextTick, onBeforeUnmount } from 'vue';
 import EventCard from './EventCard.vue';
 import {
   type CalendarEvent,
@@ -925,9 +963,73 @@ onMounted(() => {
     scrollToHour(props.defaultStartHour);
   }
 });
+
+// Custom dropdown state for view selection
+const viewDropdownOpen = ref(false);
+const viewOptions = [
+  { value: 'month', label: 'Month' },
+  { value: 'week', label: 'Week' },
+  { value: 'day', label: 'Day' }
+];
+const viewDropdownRef = ref<HTMLElement | null>(null);
+
+function selectViewOption(val: 'month' | 'week' | 'day') {
+  switchView(val);
+  closeViewDropdown();
+}
+function handleDropdownKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') closeViewDropdown();
+}
+function handleClickOutside(e: MouseEvent) {
+  if (viewDropdownRef.value && !viewDropdownRef.value.contains(e.target as Node)) {
+    closeViewDropdown();
+  }
+}
+onMounted(() => {
+  document.addEventListener('mousedown', handleClickOutside);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleClickOutside);
+});
+
+function closeViewDropdown() {
+  viewDropdownOpen.value = false;
+}
 </script>
 
 <style>
+.calendar-app-layout {
+  display: flex;
+  height: 100vh;
+  background: #f7f8fa;
+}
+.calendar-sidebar {
+  width: 260px;
+  background: #f7f8fa;
+  border-right: 1px solid #e5e7eb;
+  padding: 24px 12px 24px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  height: 100vh;
+  box-sizing: border-box;
+  overflow-y: auto;
+  position: relative;
+  z-index: 20;
+}
+.calendar-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #fff;
+  box-sizing: border-box;
+}
+.sidebar-placeholder {
+  color: #888;
+  text-align: center;
+  margin-top: 40px;
+}
 .calendar-container {
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   width: 100%;
@@ -970,90 +1072,38 @@ onMounted(() => {
   font-weight: 400;
 }
 
-.calendar-header {
+.calendar-main-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  border-bottom: 1px solid #dadce0;
+  justify-content: space-between;
+  padding: 24px 32px 16px 32px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
-
-.calendar-title {
+.calendar-header-left {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.calendar-header-title {
+  font-size: 2rem;
+  font-weight: 600;
+  color: #222;
+  margin: 0;
+  letter-spacing: -1px;
+}
+.calendar-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.calendar-header-right {
   display: flex;
   align-items: center;
   gap: 16px;
-}
-
-.calendar-title h2 {
-  font-size: 20px;
-  font-weight: 500;
-  color: #333;
-  margin: 0;
-}
-
-.calendar-nav {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.icon-button {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  font-size: 18px;
-  border: none;
-  background: transparent;
-  color: #666;
-  cursor: pointer;
-}
-
-.icon-button:hover {
-  background-color: #f5f5f5;
-  border-radius: 4px;
-}
-
-.view-toggle {
-  display: flex;
-  gap: 0;
-  margin: 0 8px;
-}
-
-.view-toggle button {
-  padding: 6px 16px;
-  font-size: 14px;
-  border: 1px solid #dadce0;
-  background: white;
-  color: #333;
-  cursor: pointer;
-}
-
-.view-toggle button:first-child {
-  border-radius: 4px 0 0 4px;
-  border-right: none;
-}
-
-.view-toggle button:last-child {
-  border-radius: 0 4px 4px 0;
-}
-
-.view-toggle button.active {
-  background-color: #1a73e8;
-  color: white;
-  border-color: #1a73e8;
-}
-
-.today-button {
-  padding: 6px 16px;
-  font-size: 14px;
-  border: 1px solid #dadce0;
-  border-radius: 4px;
-  background: white;
-  color: #333;
-  cursor: pointer;
 }
 
 /* Month View Styles */
@@ -1667,5 +1717,204 @@ onMounted(() => {
 .hour-slot.drag-over,
 .day-hour-slot.drag-over {
   background: #e3f0fd !important;
+}
+
+.icon-button {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 18px;
+  border: 1px solid #bfc5ce;
+  background: #fff;
+  color: #222;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: box-shadow 0.15s, border-color 0.15s, background 0.15s;
+  margin-right: 8px;
+}
+.icon-button:last-child {
+  margin-right: 0;
+}
+.icon-button:hover, .icon-button:focus {
+  background: #f5f7fa;
+  border-color: #1a73e8;
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.08);
+  outline: none;
+}
+.today-button {
+  padding: 0 20px;
+  height: 36px;
+  font-size: 16px;
+  font-weight: 600;
+  border: 1.5px solid #bfc5ce;
+  border-radius: 8px;
+  background: #fff;
+  color: #222;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: box-shadow 0.15s, border-color 0.15s, background 0.15s;
+}
+.today-button:hover, .today-button:focus {
+  background: #f5f7fa;
+  border-color: #1a73e8;
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.08);
+  outline: none;
+}
+
+/* Add after .calendar-sidebar styles */
+.mini-calendar-placeholder {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(60, 72, 88, 0.06);
+  padding: 16px 12px 12px 12px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.mini-calendar-header {
+  font-size: 15px;
+  font-weight: 600;
+  color: #222;
+  margin-bottom: 8px;
+}
+.mini-calendar-grid {
+  font-size: 13px;
+  color: #888;
+  text-align: center;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sidebar-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1.5px solid #e5e7eb;
+  font-size: 15px;
+  margin-bottom: 22px;
+  background: #fff;
+  color: #222;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+.sidebar-search:focus {
+  border-color: #1a73e8;
+}
+.sidebar-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 8px;
+}
+.sidebar-filter {
+  font-size: 15px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  font-family: inherit;
+}
+.sidebar-filter input[type="checkbox"] {
+  accent-color: #1a73e8;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  margin-right: 6px;
+  box-shadow: 0 1px 2px rgba(60,72,88,0.06);
+  border: 1.5px solid #bfc5ce;
+}
+.view-dropdown {
+  padding: 8px 20px 8px 12px;
+  font-size: 16px;
+  border: 1.5px solid #bfc5ce;
+  border-radius: 8px;
+  background: #fff;
+  color: #222;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  appearance: none;
+  min-width: 110px;
+  margin-left: 8px;
+}
+.view-dropdown:focus {
+  border-color: #1a73e8;
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.08);
+}
+
+/* Add after .calendar-header-right styles */
+.custom-dropdown {
+  position: relative;
+  display: inline-block;
+  min-width: 120px;
+}
+.custom-dropdown-btn {
+  width: 100%;
+  padding: 8px 36px 8px 16px;
+  font-size: 16px;
+  border: 1.5px solid #bfc5ce;
+  border-radius: 8px;
+  background: #fff;
+  color: #222;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  text-align: left;
+  position: relative;
+}
+.custom-dropdown-btn:focus {
+  border-color: #1a73e8;
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.08);
+}
+.dropdown-arrow {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%) rotate(0deg);
+  font-size: 14px;
+  color: #888;
+  pointer-events: none;
+  transition: transform 0.2s;
+}
+.dropdown-arrow.open {
+  transform: translateY(-50%) rotate(180deg);
+}
+.custom-dropdown-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 110%;
+  background: #fff;
+  border: 1.5px solid #bfc5ce;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(60,72,88,0.10);
+  z-index: 100;
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+}
+.custom-dropdown-menu li {
+  padding: 10px 18px;
+  font-size: 16px;
+  color: #222;
+  cursor: pointer;
+  transition: background 0.13s, color 0.13s;
+  border-radius: 6px;
+}
+.custom-dropdown-menu li.selected,
+.custom-dropdown-menu li:hover {
+  background: #f1f7fe;
+  color: #1a73e8;
 }
 </style>

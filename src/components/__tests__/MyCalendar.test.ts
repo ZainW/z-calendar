@@ -58,8 +58,8 @@ describe('MyCalendar', () => {
     const monthName = currentDate.toLocaleString('default', { month: 'long' })
     const year = currentDate.getFullYear()
 
-    expect(wrapper.find('.calendar-title h2').text()).toContain(monthName)
-    expect(wrapper.find('.calendar-title h2').text()).toContain(year)
+    expect(wrapper.find('.calendar-header-title').text()).toContain(monthName)
+    expect(wrapper.find('.calendar-header-title').text()).toContain(year.toString())
   })
 
   it('switches between month and week views', async () => {
@@ -67,15 +67,22 @@ describe('MyCalendar', () => {
     expect(wrapper.find('.month-view').exists()).toBe(true)
     expect(wrapper.find('.week-view').exists()).toBe(false)
 
-    // Switch to week view
-    const weekBtn = wrapper.findAll('button').find(btn => btn.text() === 'Week')
-    await weekBtn?.trigger('click')
+    // Open the view dropdown
+    const dropdownBtn = wrapper.find('.custom-dropdown-btn')
+    await dropdownBtn.trigger('click')
+    // Find the week option and click it
+    const weekOption = wrapper.findAll('.custom-dropdown-menu li').find(li => li.text() === 'Week')
+    expect(weekOption).toBeTruthy()
+    await weekOption!.trigger('click')
     expect(wrapper.find('.week-view').exists()).toBe(true)
     expect(wrapper.find('.month-view').exists()).toBe(false)
 
-    // Switch back to month view
-    const monthBtn = wrapper.findAll('button').find(btn => btn.text() === 'Month')
-    await monthBtn?.trigger('click')
+    // Open the view dropdown again
+    await dropdownBtn.trigger('click')
+    // Find the month option and click it
+    const monthOption = wrapper.findAll('.custom-dropdown-menu li').find(li => li.text() === 'Month')
+    expect(monthOption).toBeTruthy()
+    await monthOption!.trigger('click')
     expect(wrapper.find('.month-view').exists()).toBe(true)
     expect(wrapper.find('.week-view').exists()).toBe(false)
   })
@@ -95,14 +102,14 @@ describe('MyCalendar', () => {
     await prevBtn2?.trigger('click')
     const prevMonth = initialMonth === 0 ? 11 : initialMonth - 1
     const prevYear = initialMonth === 0 ? initialYear - 1 : initialYear
-    expect(wrapper.find('.calendar-title h2').text()).toContain(
+    expect(wrapper.find('.calendar-header-title').text()).toContain(
       new Date(prevYear, prevMonth).toLocaleString('default', { month: 'long' })
     )
 
     // Go to next month
     const nextBtn2 = wrapper.findAll('button').find(btn => btn.text() === '>')
     await nextBtn2?.trigger('click')
-    expect(wrapper.find('.calendar-title h2').text()).toContain(
+    expect(wrapper.find('.calendar-header-title').text()).toContain(
       new Date(initialYear, initialMonth).toLocaleString('default', { month: 'long' })
     )
   })
@@ -119,11 +126,11 @@ describe('MyCalendar', () => {
   it('handles day selection', async () => {
     const dayCell = wrapper.find('.day-cell')
     await dayCell.trigger('click')
-    // The component does not emit 'day-selected', so just check that the event card opens
-    // (selectedEvent and isEventCardOpen become true)
-    // We can check for the EventCard being present and open
     await wrapper.vm.$nextTick()
-    expect(wrapper.findComponent(EventCard).props('isOpen')).toBe(true)
+    // The EventCard should NOT open when clicking a day cell (only when clicking an event)
+    expect(wrapper.findComponent(EventCard).props('isOpen')).toBe(false)
+    // Optionally, check for day-selected event emission if you want:
+    // expect(wrapper.emitted('day-selected')).toBeTruthy()
   })
 
   it('goes to today when clicking today button', async () => {
@@ -131,12 +138,11 @@ describe('MyCalendar', () => {
     expect(todayBtn).toBeTruthy()
     await todayBtn!.trigger('click')
     const today = new Date()
-    const todayBtn2 = wrapper.findAll('button').find(btn => btn.text() === 'Today')
-    await todayBtn2?.trigger('click')
-    expect(wrapper.find('.calendar-title h2').text()).toContain(
+    // Check the header title for today
+    expect(wrapper.find('.calendar-header-title').text()).toContain(
       today.toLocaleString('default', { month: 'long' })
     )
-    expect(wrapper.find('.calendar-title h2').text()).toContain(today.getFullYear().toString())
+    expect(wrapper.find('.calendar-header-title').text()).toContain(today.getFullYear().toString())
   })
 })
 
@@ -235,12 +241,12 @@ describe('MyCalendar – additional scenarios', () => {
     // Back to November 2023
     const prevBtn = decWrapper.findAll('button').find(btn => btn.text() === '<')
     await prevBtn?.trigger('click');
-    expect(decWrapper.find('.calendar-title h2').text()).toMatch(/November\s2023/);
+    expect(decWrapper.find('.calendar-header-title').text()).toMatch(/November\s2023/);
     // Forward twice into January 2024
     const nextBtn = decWrapper.findAll('button').find(btn => btn.text() === '>')
     await nextBtn?.trigger('click');
     await nextBtn?.trigger('click');
-    expect(decWrapper.find('.calendar-title h2').text()).toMatch(/January\s2024/);
+    expect(decWrapper.find('.calendar-header-title').text()).toMatch(/January\s2024/);
   });
 });
 
