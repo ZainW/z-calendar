@@ -665,6 +665,22 @@ function getEventBackground(color: string): string {
 }
 
 // --- Drag and Drop Methods ---
+let dragOverRafId: number | null = null;
+let pendingDragOver: { date: Date; hour?: number } | null = null;
+
+function isSameDragOverDate(dateA: Date | null, dateB: Date | null, hour?: number): boolean {
+  if (!dateA || !dateB) return false;
+  if (typeof hour === 'number') {
+    return (
+      dateA.getFullYear() === dateB.getFullYear() &&
+      dateA.getMonth() === dateB.getMonth() &&
+      dateA.getDate() === dateB.getDate() &&
+      dateA.getHours() === dateB.getHours()
+    );
+  }
+  return dateA.toDateString() === dateB.toDateString();
+}
+
 function onEventDragStart(event: DragEvent, calendarEvent: CalendarEvent) {
   if (event.dataTransfer) {
     event.dataTransfer.setData('text/plain', String(calendarEvent.id));
@@ -675,18 +691,35 @@ function onEventDragStart(event: DragEvent, calendarEvent: CalendarEvent) {
 
 function onDragOver(event: DragEvent, date: Date, hour?: number) {
   event.preventDefault(); // Necessary to allow drop
-  // For week/day views, include hour in dragOverDate
-  if (typeof hour === 'number') {
-    const dragDate = new Date(date);
-    dragDate.setHours(hour, 0, 0, 0);
-    dragOverDate.value = dragDate;
-  } else {
-    dragOverDate.value = date;
-  }
+  // Throttle updates using requestAnimationFrame
+  pendingDragOver = { date, hour };
+  if (dragOverRafId !== null) return;
+  dragOverRafId = requestAnimationFrame(() => {
+    dragOverRafId = null;
+    if (!pendingDragOver) return;
+    const { date, hour } = pendingDragOver;
+    let newDragDate: Date;
+    if (typeof hour === 'number') {
+      newDragDate = new Date(date);
+      newDragDate.setHours(hour, 0, 0, 0);
+    } else {
+      newDragDate = date;
+    }
+    // Only update if different
+    if (!isSameDragOverDate(newDragDate, dragOverDate.value, hour)) {
+      dragOverDate.value = newDragDate;
+    }
+    pendingDragOver = null;
+  });
 }
 
 function onDragLeave() {
   dragOverDate.value = null;
+  if (dragOverRafId !== null) {
+    cancelAnimationFrame(dragOverRafId);
+    dragOverRafId = null;
+    pendingDragOver = null;
+  }
 }
 
 function onDragEnd() {
