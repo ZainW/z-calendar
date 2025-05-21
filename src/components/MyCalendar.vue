@@ -9,7 +9,12 @@
         <div class="mini-calendar-grid">(Mini calendar here)</div>
       </div>
       <!-- Search bar -->
-      <input type="text" class="sidebar-search" placeholder="Search emails" />
+      <input
+        type="text"
+        class="sidebar-search"
+        placeholder="Search events"
+        aria-label="Search events"
+      />
       <!-- Filters -->
       <div class="sidebar-filters">
         <label class="sidebar-filter">
