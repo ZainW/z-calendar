@@ -45,6 +45,7 @@
               'drag-over': isDraggingOver(day.date)
             }
           ]"
+          :data-date="day.date.toISOString().slice(0, 10)"
           @click="selectDay(day.date)"
           @dragover.prevent="onDragOver($event, day.date)"
           @dragleave.prevent="onDragLeave()"
@@ -714,6 +715,7 @@ function onDayDrop(event: DragEvent, date: Date) {
     const idx = localEvents.value.findIndex(e => e.id === movedEvent.id);
     if (idx !== -1) {
       localEvents.value[idx] = movedEvent;
+      emit('update:events', [...localEvents.value]);
     }
     nextTick(() => {
       // Try to find the event DOM node in the month view
@@ -724,17 +726,14 @@ function onDayDrop(event: DragEvent, date: Date) {
       if (eventIdx !== -1) {
         // Only the first 3 events are rendered as .event
         if (eventIdx < 3) {
-          // Find the day cell
-          const dayCells = document.querySelectorAll('.day-cell');
-          for (const cell of dayCells) {
-            const dayNumberEl = cell.querySelector('.day-number');
-            if (dayNumberEl && dayNumberEl.textContent == String(date.getDate())) {
-              const eventEls = cell.querySelectorAll('.event');
-              if (eventEls[eventIdx]) {
-                openEventCard(movedEvent, eventEls[eventIdx] as HTMLElement);
-                onDragEnd();
-                return;
-              }
+          // Find the day cell by data-date attribute
+          const dayCell = document.querySelector(`.day-cell[data-date='${date.toISOString().slice(0, 10)}']`);
+          if (dayCell) {
+            const eventEls = dayCell.querySelectorAll('.event');
+            if (eventEls[eventIdx]) {
+              openEventCard(movedEvent, eventEls[eventIdx] as HTMLElement);
+              onDragEnd();
+              return;
             }
           }
         }
@@ -751,9 +750,10 @@ function onDayDrop(event: DragEvent, date: Date) {
 function onTimeSlotDrop(event: DragEvent, date: Date, hour: number) {
   event.preventDefault();
   if (draggingEvent.value) {
-    // Move event to the new date and hour
+    // Move event to the new date and hour, preserving original minutes and seconds
+    const originalStart = draggingEvent.value.start;
     const newStart = new Date(date);
-    newStart.setHours(hour, 0, 0, 0);
+    newStart.setHours(hour, originalStart.getMinutes(), originalStart.getSeconds(), originalStart.getMilliseconds());
     const duration = draggingEvent.value.end.getTime() - draggingEvent.value.start.getTime();
     const newEnd = new Date(newStart.getTime() + duration);
     const movedEvent = { ...draggingEvent.value, start: newStart, end: newEnd };
@@ -761,6 +761,8 @@ function onTimeSlotDrop(event: DragEvent, date: Date, hour: number) {
     const idx = localEvents.value.findIndex(e => e.id === movedEvent.id);
     if (idx !== -1) {
       localEvents.value[idx] = movedEvent;
+      emit('event-updated', movedEvent);
+      emit('update:events', [...localEvents.value]);
     }
     nextTick(() => {
       // Try to find the event DOM node in week/day view
