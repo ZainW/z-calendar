@@ -17,11 +17,25 @@
       />
       <!-- Filters -->
       <div class="sidebar-filters">
-        <label class="sidebar-filter">
-          <input type="checkbox" checked /> Scheduled
+        <label class="sidebar-filter" :for="'filter-scheduled'">
+          <input
+            id="filter-scheduled"
+            type="checkbox"
+            v-model="activeFilters.scheduled"
+            :aria-checked="activeFilters.scheduled"
+            role="checkbox"
+          />
+          Scheduled
         </label>
-        <label class="sidebar-filter">
-          <input type="checkbox" checked /> Sent
+        <label class="sidebar-filter" :for="'filter-sent'">
+          <input
+            id="filter-sent"
+            type="checkbox"
+            v-model="activeFilters.sent"
+            :aria-checked="activeFilters.sent"
+            role="checkbox"
+          />
+          Sent
         </label>
       </div>
     </aside>
@@ -42,12 +56,14 @@
               :aria-expanded="viewDropdownOpen"
               @click="viewDropdownOpen = !viewDropdownOpen"
               @keydown="handleDropdownKeydown"
+              role="combobox"
+              aria-haspopup="listbox"
               type="button"
             >
               {{ viewOptions.find(opt => opt.value === view)?.label }}
               <span class="dropdown-arrow" :class="{ open: viewDropdownOpen }">▼</span>
             </button>
-            <ul v-if="viewDropdownOpen" class="custom-dropdown-menu">
+            <ul v-if="viewDropdownOpen" class="custom-dropdown-menu" role="listbox">
               <li
                 v-for="opt in viewOptions"
                 :key="opt.value"
@@ -55,6 +71,8 @@
                 @click="selectViewOption(opt.value as 'month' | 'week' | 'day')"
                 tabindex="0"
                 @keydown.enter="selectViewOption(opt.value as 'month' | 'week' | 'day')"
+                role="option"
+                :aria-selected="view === opt.value"
               >
                 {{ opt.label }}
               </li>
@@ -383,7 +401,6 @@ const fetchRange = computed(() => {
     // Week view
     const day = start.getDay();
     start.setDate(start.getDate() - day); // First day of week
-    end.setDate(end.getDate() + (6 - day)); // Last day of week
   } else if (view.value === 'day') {
     // Day view - just the current day
     start.setHours(0, 0, 0, 0);
@@ -552,7 +569,7 @@ interface WeekDay {
 const currentWeekDays = computed<WeekDay[]>(() => {
   const currentWeekStart = new Date(currentDate.value);
   const day = currentWeekStart.getDay();
-  currentWeekStart.setDate(currentWeekStart.getDate() - day); // No adjustment needed since Sunday is 0
+  currentWeekStart.setDate(currentWeekStart.getDate() - day); // First day of week
 
   return Array.from({ length: 7 }, (_, i) => {
     const date = new Date(currentWeekStart);
@@ -978,7 +995,19 @@ function selectViewOption(val: 'month' | 'week' | 'day') {
   closeViewDropdown();
 }
 function handleDropdownKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') closeViewDropdown();
+  const options = viewOptions;
+  const currentIndex = options.findIndex(opt => opt.value === view.value);
+  if (e.key === 'Escape') {
+    closeViewDropdown();
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const nextIndex = (currentIndex + 1) % options.length;
+    selectViewOption(options[nextIndex].value as 'month' | 'week' | 'day');
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prevIndex = (currentIndex - 1 + options.length) % options.length;
+    selectViewOption(options[prevIndex].value as 'month' | 'week' | 'day');
+  }
 }
 function handleClickOutside(e: MouseEvent) {
   if (viewDropdownRef.value && !viewDropdownRef.value.contains(e.target as Node)) {
@@ -995,6 +1024,12 @@ onBeforeUnmount(() => {
 function closeViewDropdown() {
   viewDropdownOpen.value = false;
 }
+
+// Add reactive filter state for checkboxes
+const activeFilters = ref({
+  scheduled: true,
+  sent: true
+});
 </script>
 
 <style>
