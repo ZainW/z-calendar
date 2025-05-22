@@ -132,7 +132,8 @@ watch(() => props.currentDate, (newVal) => {
         :aria-label="`Select date ${day.date.toDateString()}`"
         :aria-selected="day.isSelected"
         tabindex="0"
-        @keydown.enter="selectDay(day)" @keydown.space="selectDay(day)"
+        @keydown.enter="selectDay(day)"
+        @keydown.space.prevent="selectDay(day)"
       >
         {{ day.dayNumber }}
       </div>
