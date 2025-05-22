@@ -37,7 +37,7 @@ const daysGrid = computed<DayObject[]>(() => {
   const month = displayMonth.value.getMonth();
 
   const firstDayOfMonth = new Date(year, month, 1);
-  
+
   // Start date is the Sunday of the week the first day of the month falls in
   const startDate = new Date(firstDayOfMonth);
   startDate.setDate(startDate.getDate() - firstDayOfMonth.getDay()); // .getDay() is 0 for Sun, 1 for Mon...
@@ -78,26 +78,19 @@ function selectDay(day: DayObject) {
     displayMonth.value = new Date(day.date.getFullYear(), day.date.getMonth(), 1);
     // No need to emit 'navigate-month' here if the main calendar handles month changes based on 'date-selected'
     // However, if mini-calendar should independently signal month navigation on such clicks:
-    // emit('navigate-month', new Date(displayMonth.value)); 
+    // emit('navigate-month', new Date(displayMonth.value));
   }
 }
 
 watch(() => props.currentDate, (newVal) => {
   // Update displayMonth if the main calendar's month changes,
   // but avoid feedback loop if mini-calendar initiated the change.
-  if (newVal.getFullYear() !== displayMonth.value.getFullYear() || 
+  if (newVal.getFullYear() !== displayMonth.value.getFullYear() ||
       newVal.getMonth() !== displayMonth.value.getMonth()) {
     displayMonth.value = new Date(newVal);
   }
 }, { immediate: true }); // Use immediate to set initial displayMonth correctly based on prop
 
-// Watch selectedDate to ensure reactivity if it changes from parent
-// The daysGrid computed property will automatically update based on props.selectedDate
-// No explicit action needed in the watcher itself for re-rendering, computed handles it.
-watch(() => props.selectedDate, () => {
-  // This watcher ensures that if props.selectedDate changes,
-  // the component reacts, and computed properties depending on it are re-evaluated.
-});
 
 </script>
 
