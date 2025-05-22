@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, defineProps, defineEmits } from 'vue';
+import type { PropType } from 'vue';
 
 interface DayObject {
   date: Date;
@@ -9,10 +10,19 @@ interface DayObject {
   isSelected: boolean;
 }
 
-const props = defineProps<{
-  currentDate: Date;
-  selectedDate: Date | null;
-}>();
+const props = defineProps({
+  currentDate: {
+    type: Object as PropType<Date>,
+    required: true,
+    validator: (val: unknown) => val instanceof Date && !isNaN(val.getTime()),
+  },
+  selectedDate: {
+    type: Object as PropType<Date | null>,
+    required: false,
+    default: null,
+    validator: (val: unknown) => val === null || (val instanceof Date && !isNaN(val.getTime())),
+  },
+});
 
 const emit = defineEmits(['date-selected', 'navigate-month']);
 
