@@ -129,7 +129,7 @@ watch(() => props.currentDate, (newVal) => {
 
 <style scoped>
 .mini-calendar {
-  width: 230px; /* Adjusted width */
+  width: 220px; /* Adjusted width */
   padding: 8px;
   background-color: #fff;
   border: 1px solid #e0e0e0; /* Softer border */
@@ -153,14 +153,23 @@ watch(() => props.currentDate, (newVal) => {
 }
 
 .nav-button {
+  width: 36px;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
-  border: none; /* Removed border */
+  border: none;
   cursor: pointer;
-  padding: 4px 8px; /* Adjusted padding */
-  border-radius: 4px; /* More rounded */
-  font-size: 1.1em; /* Larger arrows */
+  border-radius: 8px;
+  font-size: 1.1em;
   color: #555;
   transition: background-color 0.2s;
+  padding: 0;
+  box-sizing: border-box;
 }
 .nav-button:hover {
   background-color: #f0f0f0; /* Hover effect */
@@ -187,19 +196,23 @@ watch(() => props.currentDate, (newVal) => {
 }
 
 .day-cell {
-  padding: 6px 0; /* Adjusted padding, no horizontal padding needed due to text-align */
+  width: 30px;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
   text-align: center;
-  border: 1px solid transparent; /* Transparent border for spacing */
-  font-size: 0.85em; /* Slightly smaller day numbers */
+  border: 1px solid transparent;
+  font-size: 0.85em;
   cursor: pointer;
-  border-radius: 4px; /* Rounded cells */
+  border-radius: 4px;
   transition: background-color 0.2s, border-color 0.2s;
   color: #444;
-  line-height: 1.2; /* Ensure consistent height */
-  min-height: 28px; /* Fixed height */
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
 }
 
 .day-cell:hover {
