@@ -237,12 +237,7 @@ watch(() => props.currentDate, (newVal) => {
 
 .day-cell.today {
   font-weight: bold;
-.day-cell.today {
-  font-weight: bold;
   background-color: #ebf4ff; /* Light blue background for today */
-  border: 1px solid #cce0ff; /* Slightly darker blue border for today */
-  color: #005fc9; /* Darker blue text for today */
-}
   border: 1px solid #cce0ff; /* Slightly darker blue border for today */
   color: #005fc9; /* Darker blue text for today */
 }
