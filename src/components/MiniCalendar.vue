@@ -109,7 +109,7 @@ watch(() => props.currentDate, (newVal) => {
     </div>
     <div class="mini-calendar-grid">
       <div
-        v-for="(day, index) in daysGrid"
+        v-for="(day) in daysGrid"
         :key="`${day.date.getFullYear()}-${day.date.getMonth()}-${day.date.getDate()}`"
         class="day-cell"
         :class="{
@@ -126,6 +126,7 @@ watch(() => props.currentDate, (newVal) => {
       >
         {{ day.dayNumber }}
       </div>
+    </div>
   </div>
 </template>
 
