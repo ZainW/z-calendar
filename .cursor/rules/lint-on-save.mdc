@@ -1,0 +1,20 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+- Linting is not enforced on commit, but should be run automatically on file save.
+- Instruct all contributors to enable the following in their `.vscode/settings.json`:
+
+```json
+{
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "eslint.validate": [
+    "javascript",
+    "typescript",
+    "vue"
+  ]
+}
+```

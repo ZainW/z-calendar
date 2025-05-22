@@ -1,0 +1,8 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+- Use the `@/` alias for all imports from within the project.
+- Do not use relative paths like `../../` for internal imports.
+- Ensure your Vite and TypeScript config map `@` to the `src/` directory.
