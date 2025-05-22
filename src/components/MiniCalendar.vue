@@ -18,7 +18,10 @@ const emit = defineEmits(['date-selected', 'navigate-month']);
 
 const displayMonth = ref(new Date(props.currentDate)); // Initialize with current month from main calendar
 
-const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S']; // Or use Intl for localization
+const weekdays = Array.from({ length: 7 }, (_, i) => {
+  const date = new Date(2021, 0, i + 3); // Jan 3, 2021 was a Sunday
+  return new Intl.DateTimeFormat(undefined, { weekday: 'narrow' }).format(date);
+});
 
 const formattedMonthYear = computed(() => {
   return displayMonth.value.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
@@ -107,7 +110,7 @@ watch(() => props.currentDate, (newVal) => {
     <div class="mini-calendar-grid">
       <div
         v-for="(day, index) in daysGrid"
-        :key="index"
+        :key="`${day.date.getFullYear()}-${day.date.getMonth()}-${day.date.getDate()}`"
         class="day-cell"
         :class="{
           'other-month': !day.isCurrentMonth,
@@ -123,7 +126,6 @@ watch(() => props.currentDate, (newVal) => {
       >
         {{ day.dayNumber }}
       </div>
-    </div>
   </div>
 </template>
 
@@ -234,9 +236,12 @@ watch(() => props.currentDate, (newVal) => {
 
 .day-cell.today {
   font-weight: bold;
-  /* border: 1px solid #1a73e8;  Blue border for today */
-  /* color: #1a73e8; Blue text for today */
+.day-cell.today {
+  font-weight: bold;
   background-color: #ebf4ff; /* Light blue background for today */
+  border: 1px solid #cce0ff; /* Slightly darker blue border for today */
+  color: #005fc9; /* Darker blue text for today */
+}
   border: 1px solid #cce0ff; /* Slightly darker blue border for today */
   color: #005fc9; /* Darker blue text for today */
 }
