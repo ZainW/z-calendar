@@ -1,0 +1,9 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+- Use `@antfu/eslint-config` as the primary ESLint config.
+- Enforce all Vue 3 "strongly recommended" style guide rules.
+- Let ESLint handle component naming and conventions.
+- Linting should be performed on save (recommend enabling `editor.codeActionsOnSave.source.fixAll.eslint` in VSCode).

@@ -1,0 +1,8 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+- All test files must be placed in the `__tests__` directory at the appropriate level.
+- Do not place test files outside of `__tests__`.
+- Use Vitest as the test runner.
