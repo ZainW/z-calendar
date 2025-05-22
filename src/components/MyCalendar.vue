@@ -1,13 +1,12 @@
 <template>
   <div class="calendar-app-layout">
     <aside class="calendar-sidebar">
-      <!-- Mini calendar placeholder -->
-      <div class="mini-calendar-placeholder">
-        <div class="mini-calendar-header">
-          <span>June 2025</span>
-        </div>
-        <div class="mini-calendar-grid">(Mini calendar here)</div>
-      </div>
+      <MiniCalendar
+        :current-date="currentDate"
+        :selected-date="selectedDate"
+        @date-selected="handleMiniCalendarDateSelected"
+        @navigate-month="handleMiniCalendarNavigateMonth"
+      />
       <!-- Search bar -->
       <input
         type="text"
@@ -254,6 +253,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, inject, provide, nextTick, onBeforeUnmount } from 'vue';
+import MiniCalendar from './MiniCalendar.vue';
 import EventCard from './EventCard.vue';
 import {
   type CalendarEvent,
@@ -994,6 +994,16 @@ onBeforeUnmount(() => {
 
 function closeViewDropdown() {
   viewDropdownOpen.value = false;
+}
+
+// --- Mini Calendar Event Handlers ---
+function handleMiniCalendarDateSelected(date: Date): void {
+  currentDate.value = new Date(date);
+  selectedDate.value = new Date(date);
+}
+
+function handleMiniCalendarNavigateMonth(date: Date): void {
+  currentDate.value = new Date(date.getFullYear(), date.getMonth(), 1);
 }
 </script>
 
@@ -1764,32 +1774,6 @@ function closeViewDropdown() {
   outline: none;
 }
 
-/* Add after .calendar-sidebar styles */
-.mini-calendar-placeholder {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(60, 72, 88, 0.06);
-  padding: 16px 12px 12px 12px;
-  margin-bottom: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.mini-calendar-header {
-  font-size: 15px;
-  font-weight: 600;
-  color: #222;
-  margin-bottom: 8px;
-}
-.mini-calendar-grid {
-  font-size: 13px;
-  color: #888;
-  text-align: center;
-  min-height: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 .sidebar-search {
   width: 100%;
   box-sizing: border-box;
