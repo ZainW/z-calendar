@@ -26,7 +26,7 @@ importers:
     devDependencies:
       '@tsconfig/node22':
         specifier: ^22.0.1
-        version: 22.0.1
+        version: 22.0.2
       '@types/jsdom':
         specifier: ^21.1.7
         version: 21.1.7
@@ -752,8 +752,8 @@ packages:
     peerDependencies:
       vue: '>=3.2'
 
-  '@tsconfig/node22@22.0.1':
-    resolution: {integrity: sha512-VkgOa3n6jvs1p+r3DiwBqeEwGAwEvnVCg/hIjiANl5IEcqP3G0u5m8cBJspe1t9qjZRlZ7WFgqq5bJrGdgAKMg==}
+  '@tsconfig/node22@22.0.2':
+    resolution: {integrity: sha512-Kmwj4u8sDRDrMYRoN9FDEcXD8UpBSaPQQ24Gz+Gamqfm7xxn+GBR7ge/Z7pK8OXNGyUzbSwJj+TH6B+DS/epyA==}
 
   '@types/argparse@1.0.38':
     resolution: {integrity: sha512-ebDJ9b0e702Yr7pWgB0jzm+CX4Srzz8RcXtLJDJB+BSccqMa36uyH/zUsSYao5+BD1ytv3k3rPYCq4mAE1hsXA==}
@@ -3012,7 +3012,7 @@ snapshots:
       '@tanstack/table-core': 8.21.3
       vue: 3.5.14(typescript@5.8.3)
 
-  '@tsconfig/node22@22.0.1': {}
+  '@tsconfig/node22@22.0.2': {}
 
   '@types/argparse@1.0.38': {}
 
